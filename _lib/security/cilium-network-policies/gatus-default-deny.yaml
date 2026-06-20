@@ -1,0 +1,19 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: gatus-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: gatus
+spec:
+  description: |
+    Default-deny ingress + egress for every pod in the gatus namespace.
+    The companion CCNP (gatus-allow) carves out the needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: gatus
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

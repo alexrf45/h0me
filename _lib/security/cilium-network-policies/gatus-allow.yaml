@@ -1,0 +1,83 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: gatus-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: gatus
+spec:
+  description: |
+    Allow rules for the Gatus status engine.
+    Ingress: Cilium Gateway (reserved:ingress) for the internal HTTPRoute,
+    cloudflared (the public dev-status path, plain pod-to-pod), kubelet
+    probes (host/remote-node), and Prometheus scrape (monitoring ns) — all
+    on :8080.
+    Egress: DNS, world:443 for external probes (TrueNAS, UniFi), and
+    `cluster` (any port) for Gateway-routed in-cluster probes — the Cilium
+    L7 envoy filter enforces policy against the BACKEND identity at the
+    BACKEND port, so a narrower rule fails with "envoy 403 Access denied".
+    See per-rule comments below and the memory entry.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: gatus
+      app: gatus
+  ingress:
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # cloudflared tunnel connector → gatus. The public hostname
+    # dev-status.th0th.dev is proxied from cloudflared directly to the
+    # gatus pod (not via the Cilium Gateway / reserved:ingress identity),
+    # so this allow is required for the public path to work.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflared
+            app: cloudflared
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    # DNS against kube-dns — covers in-cluster names + CoreDNS split-horizon
+    # forwarding *.th0th.dev queries out to UniFi.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # External HTTPS probes — TrueNAS (192.168.20.106), UniFi (10.3.3.1).
+    # Both are unmanaged LAN IPs, so they fall under `world`.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # In-cluster HTTPS probes via the Cilium Gateway. The Cilium L7 envoy
+    # filter (cilium.l7policy) enforces egress policy at envoy against the
+    # BACKEND service identity at the BACKEND port (not envoy itself, and
+    # not on :443). For a status engine probing N services across N ports,
+    # enumerating each is brittle — `toEntities: [cluster]` (any port)
+    # covers all current and future Gateway-routed backends.
+    # Symptom if missing: envoy returns "HTTP/1.1 403 Forbidden / Access
+    # denied" (server: envoy) and gatus logs success=false, errors=0.
+    - toEntities:
+        - cluster

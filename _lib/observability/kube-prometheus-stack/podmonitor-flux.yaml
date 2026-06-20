@@ -1,0 +1,30 @@
+---
+# Flux 2.x controllers expose /metrics on container port `http-prom` (:8080)
+# but only source-controller + notification-controller have Service objects,
+# and those services don't expose :8080. Using a PodMonitor lets us scrape all
+# four controllers directly without needing the operator to create Services.
+#
+# Replaces servicemonitor-flux.yaml — that one had three bugs at once:
+# (1) selector matched `app:<name>` but Flux 2.x labels are
+#     `app.kubernetes.io/component:<name>`,
+# (2) listed helm-controller + kustomize-controller, neither of which has a
+#     matching Service,
+# (3) hit port `http-prom` but the existing Services only expose `http`.
+# Result: zero gotk_*/flux_* series in Prometheus for the entire prior install.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: flux-system
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: flux
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+  podMetricsEndpoints:
+    - port: http-prom
+      interval: 60s

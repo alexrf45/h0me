@@ -1,0 +1,38 @@
+---
+# Egress allow for the gatus S-6 dump CronJob pod. Default-deny
+# (gatus-default-deny) covers the whole namespace; punch holes explicitly.
+# Companion ingress rule lives on gatus-cnpg-allow.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: gatus-dump-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: gatus
+    component: backup
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: gatus
+      app: cnpg-dump
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # pg_dump → CNPG primary on 5432 (matches the -rw service backend pods)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gatus
+            cnpg.io/cluster: gatus-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP

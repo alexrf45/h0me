@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: cloudflared
+  namespace: cloudflared
+spec:
+  # Guardrail for 2 connector replicas (req 50m/64Mi, limit 200m/128Mi each)
+  # with headroom for a RollingUpdate surge to 3.
+  hard:
+    requests.cpu: 300m
+    requests.memory: 256Mi
+    limits.cpu: "1"
+    limits.memory: 512Mi

@@ -1,0 +1,22 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cloudflared
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: cloudflared
+spec:
+  # Targets the cloudflared-metrics Service in the cloudflared namespace.
+  # cloudflared exposes /metrics on the same port as /ready (2000), enabled
+  # via the `--metrics 0.0.0.0:2000` arg in the Deployment.
+  namespaceSelector:
+    matchNames:
+      - cloudflared
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s

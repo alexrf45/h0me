@@ -1,0 +1,116 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: authentik-cnpg-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: authentik
+    component: database
+spec:
+  description: |
+    Allow rules for the CNPG-managed Postgres cluster backing authentik.
+    Covers authentik app → primary on 5432, intra-cluster replication,
+    Prometheus metrics scrape, DNS, and kube-apiserver egress (the
+    instance manager talks to it for leader election + status).
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: authentik
+      cnpg.io/cluster: authentik-${ENVIRONMENT}-cluster
+  ingress:
+    # authentik app → primary on 5432
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            k8s:app.kubernetes.io/name: authentik
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Daily pg_dump CronJob (S-6 rip cord) → primary on 5432
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            app: cnpg-dump
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Intra-cluster: streaming replication + instance-manager probes
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            cnpg.io/cluster: authentik-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+            - port: "9187"
+              protocol: TCP
+    # Prometheus scrape of metrics + instance-manager
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    # CNPG operator → instance-manager status extraction. Without this
+    # the operator can't read /pg/status (port 8000), ConsistentSystemID
+    # stays False, and the cluster can't scale past instance-1.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: database
+            k8s:app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+    # Health/readiness/liveness probes are issued by the kubelet,
+    # which presents as host / remote-node identity.
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Intra-cluster: replication and peer health
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            cnpg.io/cluster: authentik-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+            - port: "9187"
+              protocol: TCP
+    # kube-apiserver — the CNPG instance manager keeps Cluster status fresh
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

@@ -1,0 +1,5 @@
+bucket = "dev-khepri-state-913f37f7-9735-8205-17da-48f4072a2d0e"
+region = "us-west-2"
+use_lockfile = true
+encrypt = true
+key = "state/dev/202605241956-v1.13.0.tfstate"

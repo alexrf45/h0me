@@ -1,0 +1,12 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# (O-9) App-level dashboards auto-discovered by the kps Grafana sidecar.
+# Each ConfigMap carries `grafana_dashboard: "1"` so the sidecar mounts it
+# at startup. authentik + cloudflared are pinned community dashboards (see
+# file headers for grafana.com IDs); gatus + freshrss are hand-authored.
+resources:
+  - dashboard-authentik.yaml
+  - dashboard-cloudflared.yaml
+  - dashboard-gatus.yaml
+  - dashboard-freshrss.yaml

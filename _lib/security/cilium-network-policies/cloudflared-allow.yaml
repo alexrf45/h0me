@@ -1,0 +1,81 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cloudflared-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: cloudflared
+spec:
+  description: |
+    Allow rules for the cloudflared tunnel connectors.
+    Ingress: kubelet probes (host/remote-node) + Prometheus scrape on
+    :2000 (the metrics/ready endpoint).
+    Egress:
+    - DNS for resolving Cloudflare edge + backend service names.
+    - Cloudflare edge on UDP+TCP :7844 (QUIC primary) and TCP :443
+      (fallback). Egress is `world` because the edge is on the internet.
+    - In-cluster backend for the public ingress rule: gatus.gatus.svc:8080
+      (today's only tunnel ingress target; add more as new public hostnames
+      are configured in terraform/cloudflare-tunnel/main.tf).
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: cloudflared
+      app: cloudflared
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "2000"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "2000"
+              protocol: TCP
+  egress:
+    # DNS against kube-dns.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Cloudflare edge — primary QUIC over 7844; TCP fallbacks on 7844/443.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "7844"
+              protocol: UDP
+            - port: "7844"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
+    # Tunnel backends. Append additional backend endpoint selectors here as
+    # new public hostnames are added to terraform/cloudflare-tunnel/main.tf's
+    # ingress list.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gatus
+            app: gatus
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app: kromgo
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

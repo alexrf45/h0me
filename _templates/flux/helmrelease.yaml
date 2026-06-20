@@ -1,0 +1,27 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: example
+  namespace: flux-system
+spec:
+  interval: 24h
+  chart:
+    spec:
+      chart: example
+      version: 1.0.0
+      interval: 24h
+      sourceRef:
+        kind: HelmRepository
+        name: example
+        namespace: flux-system
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: -1
+  targetNamespace: default
+  values:

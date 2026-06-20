@@ -1,0 +1,41 @@
+---
+# Egress allow for the freshrss S-6 dump CronJob pod. Default-deny
+# (freshrss-default-deny) covers the whole namespace; we punch holes
+# explicitly. Companion ingress rule lives on freshrss-cnpg-allow.
+#
+# [[cilium-gateway-egress-l7-filter]] taught us to be explicit about
+# in-cluster destination identities — never rely on world for pod→pod.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: freshrss-dump-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: freshrss
+    component: backup
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: freshrss
+      app: cnpg-dump
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # pg_dump → CNPG primary on 5432 (matches the -rw service backend pods)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: freshrss
+            cnpg.io/cluster: freshrss-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP

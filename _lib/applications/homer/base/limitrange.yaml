@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: homer-defaults
+  namespace: homer
+spec:
+  limits:
+    # Safety-net defaults for any container that omits resources. The homer
+    # container sets its own (matching) values, so these only apply to future
+    # additions to the namespace.
+    - type: Container
+      defaultRequest:
+        cpu: 5m
+        memory: 16Mi
+      default:
+        cpu: 100m
+        memory: 64Mi

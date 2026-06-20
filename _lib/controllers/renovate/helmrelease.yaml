@@ -1,0 +1,68 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: renovate
+  namespace: flux-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: renovate
+      version: "<44.0.0"
+      sourceRef:
+        kind: HelmRepository
+        name: renovate
+        namespace: flux-system
+      interval: 30m
+  targetNamespace: renovate
+  values:
+    cronjob:
+      schedule: "0 12 * * *"
+    renovate:
+      config: |-
+        {
+          "extends": ["config:recommended"],
+          "labels": ["renovate", "dependencies"],
+          "platform": "github",
+          "repositories": ["alexrf45/th0th"],
+          "baseBranches": ["dev", "staging"],
+          "kubernetes": {"fileMatch": ["^_lib/applications/.+\\.yaml$"]},
+          "flux": {"fileMatch": ["\\.yaml$"]},
+          "includePaths": [
+            "_clusters/**/.+\\.yaml$",
+            "_lib/.+\\.yaml$",
+            "global/.+\\.yaml$",
+            "**/kustomization.yaml",
+            "**/helmrelease.yaml",
+            "**/deployment.yaml"
+          ],
+
+          "ignorePaths": [
+            "**/terraform/**",
+            "**/*.tf",
+            "**/*.tfvars",
+            "**/terraform.tfstate*",
+            "**/.terraform/**",
+            "**/terragrunt.hcl",
+            "**/*.hcl",
+            "**/_archive/**",
+            "**/_hack/**",
+            "**/_templates/**",
+            "**/_docs/**"
+          ]
+        }
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        seccompProfile:
+          type: RuntimeDefault
+        capabilities:
+          drop:
+            - ALL
+    envFrom:
+      - secretRef:
+          name: renovate-env
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000

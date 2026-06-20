@@ -1,0 +1,27 @@
+---
+# kromgo reads config.yaml once at startup; it doesn't watch the file. A
+# configMapGenerator with the default name-suffix hash ensures every edit
+# to config/config.yaml produces a new ConfigMap name, which kustomize
+# automatically rewrites in the Deployment's volume reference — forcing a
+# pod rollout. No Stakater Reloader required.
+#
+# The generator annotation `kustomize.toolkit.fluxcd.io/substitute: disabled`
+# stops Flux postBuild from substituting `${...}` placeholders inside the
+# config file (none today, but cheap insurance — e.g. `$1` backrefs in
+# label_replace would otherwise get clobbered).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+configMapGenerator:
+  - name: kromgo-config
+    files:
+      - config/config.yaml
+generatorOptions:
+  annotations:
+    kustomize.toolkit.fluxcd.io/substitute: disabled
+  labels:
+    app.kubernetes.io/name: kromgo

@@ -1,0 +1,22 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gatus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: gatus
+spec:
+  # Gatus exposes /metrics on the same port as the UI (8080) when
+  # `metrics: true` is set in the config. Prometheus selector is empty
+  # (matches all SMs cluster-wide), so labels here are descriptive only.
+  namespaceSelector:
+    matchNames:
+      - gatus
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gatus
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s

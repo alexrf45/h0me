@@ -1,0 +1,57 @@
+---
+# Flux-owned override of the kube-system/coredns ConfigMap.
+#
+# Talos creates a stock CoreDNS ConfigMap at bootstrap and then never touches it
+# ("Talos automatically only creates new resources. Once created, Talos never
+# edits or deletes resources"), so a custom Corefile cannot be delivered
+# reliably via a Talos inlineManifest — the stock and custom ConfigMaps race on
+# the same object name and the loser is silently ignored. Flux DOES continuously
+# reconcile and force-applies conflicts, so it owns the Corefile here.
+#
+# The split-horizon server block forwards internal *.th0th.dev names to the
+# LAN resolver (UniFi, ${INTERNAL_DNS_RESOLVER}), which serves the records
+# external-dns writes; everything else stays on the node upstreams via
+# /etc/resolv.conf. Without it, in-cluster OIDC back-channels (e.g. Grafana's
+# server-side token exchange to Authentik) NXDOMAIN on internal-only names.
+#
+# The .:53 block is pinned to the Talos 1.12.x stock Corefile — re-sync it with
+# the upstream default on Talos version bumps. CoreDNS's `reload` plugin applies
+# changes within ~30s, so no pod restart is needed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    .:53 {
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        log . {
+            class error
+        }
+        prometheus :9153
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        }
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30 {
+           disable success cluster.local
+           disable denial cluster.local
+        }
+        loop
+        reload
+        loadbalance
+    }
+    th0th.dev:53 {
+        errors
+        cache 30
+        forward . ${INTERNAL_DNS_RESOLVER}
+    }

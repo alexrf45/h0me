@@ -1,0 +1,28 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: falco
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: falco
+spec:
+  # Targets the chart-created metrics Service in the security namespace.
+  # The Falco chart (8.0.0) creates `<fullname>-metrics` (e.g.
+  # `falco-falcosecurity-metrics`) on port 8765 when metrics.enabled +
+  # metrics.service.create are true (both set in
+  # _lib/controllers/falco/helmrelease.yaml). The Service carries the
+  # label `type: falco-metrics` plus the chart's standard selectorLabels.
+  namespaceSelector:
+    matchNames:
+      - security
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falcosecurity
+      app.kubernetes.io/instance: falco
+      type: falco-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

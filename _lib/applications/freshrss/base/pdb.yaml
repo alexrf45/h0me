@@ -1,0 +1,15 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: freshrss
+  namespace: freshrss
+spec:
+  # App is a single-replica Recreate deployment on RWO storage. maxUnavailable:1
+  # declares disruption intent while keeping node drains unblocked (minAvailable
+  # would pin the only pod and block drains). Selector matches the app pod ONLY
+  # (app=freshrss); CNPG runs its own PDB over the cnpg.io/* database pods.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: freshrss

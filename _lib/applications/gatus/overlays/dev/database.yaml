@@ -1,0 +1,75 @@
+---
+# Single-instance CNPG cluster on a static iSCSI PV per ADR-0003 — backs the
+# N-6 Gatus persistence upgrade (memory → postgres). Backups land as CSI
+# VolumeSnapshots via the ScheduledBackup below; S-6 rip cord lives in
+# dump-cronjob.yaml. See _docs/guides/cnpg-rescue.md for restore procedure.
+#
+# pg_hba intentionally locks the gatus DB to the gatus user from the cluster
+# CIDR only; pgaudit params mirror freshrss/authentik for forensic parity.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gatus-${ENVIRONMENT}-cluster
+  namespace: gatus
+  labels:
+    app: "gatus"
+    node: "worker"
+    env: "${ENVIRONMENT}"
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.4-6@sha256:4ebb83ad6701cf90cd16f4c0b502676238ffdb1169bf27c5ae60e9a5bdc7b925
+  instances: 1
+  postgresql:
+    pg_hba:
+      - hostssl gatus gatus 10.43.0.0/16 scram-sha-256
+    parameters:
+      "pgaudit.log": "all, -misc"
+      "pgaudit.log_catalog": "off"
+      "pgaudit.log_parameter": "on"
+      "pgaudit.log_relation": "on"
+  monitoring:
+    enablePodMonitor: true
+  bootstrap:
+    initdb:
+      database: gatus
+      owner: gatus
+      secret:
+        name: gatus-db-creds
+  superuserSecret:
+    name: gatus-db-creds
+  storage:
+    size: 10Gi
+    storageClass: iscsi
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: iscsi
+      volumeName: dev-gatus-db-pv
+      resources:
+        requests:
+          storage: 10Gi
+  backup:
+    volumeSnapshot:
+      className: freenas-iscsi
+      snapshotOwnerReference: backup
+      online: true
+      onlineConfiguration:
+        immediateCheckpoint: true
+        waitForArchive: false
+---
+# Daily VolumeSnapshot — staggered to 05:00 UTC to avoid the freshrss (04:00)
+# / authentik (04:30 by convention) windows.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: gatus-${ENVIRONMENT}-cluster-snap
+  namespace: gatus
+  labels:
+    app: gatus
+    component: backup
+spec:
+  schedule: "0 0 5 * * *"
+  backupOwnerReference: self
+  immediate: false
+  method: volumeSnapshot
+  cluster:
+    name: gatus-${ENVIRONMENT}-cluster

@@ -1,0 +1,60 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: freshrss-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: freshrss
+spec:
+  description: |
+    Allow rules for the freshrss application pod: gateway ingress, DNS,
+    egress to its CNPG cluster, and outbound HTTP(S) for feed fetching.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: freshrss
+      app: freshrss
+  ingress:
+    # Cilium Gateway API: backend connections arrive from the
+    # reserved:ingress identity (the cilium-envoy proxy). host /
+    # remote-node covers kubelet probes when they hit port 80.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+  egress:
+    # DNS lookup against kube-dns
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # CNPG instance pods, same namespace
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: freshrss
+            cnpg.io/cluster: freshrss-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Outbound feed fetching. RSS/Atom endpoints are arbitrary public hosts.
+    # toEntities: world keeps it simple; a follow-up can tighten via toFQDNs
+    # once L7 DNS visibility is enabled.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

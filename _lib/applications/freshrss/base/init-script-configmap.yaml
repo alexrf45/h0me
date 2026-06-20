@@ -1,0 +1,86 @@
+---
+# FreshRSS install/user bootstrap script.
+#
+# The upstream Docker/entrypoint.sh handles install + user creation by reading
+# FRESHRSS_INSTALL / FRESHRSS_USER and running them through `eval "echo \"$VAR\""`
+# before word-splitting into argv. That second eval re-interprets any `$` or
+# backtick that ended up in a secret value (passwords commonly contain them),
+# silently consuming tokens and shifting positional flags — which is why
+# `--default-user $ADMIN_USER` would come up empty even though the env var
+# itself was populated correctly.
+#
+# This script bypasses that path entirely: it invokes cli/do-install.php and
+# cli/create-user.php directly with quoted argv, then exec's the upstream
+# entrypoint with FRESHRSS_INSTALL/FRESHRSS_USER unset so those branches are
+# skipped. Exit code 3 from either CLI means "already installed/created" and
+# is treated as success.
+#
+# IMPORTANT: --db-prefix is declared as optional-value in do-install.php,
+# which maps to PHP getopt's `::` notation. PHP getopt requires
+# `--name=value` (with equals) for optional-value long options, AND it
+# stops parsing at the first non-option token (anything not starting with
+# `-`). Writing `--db-prefix freshrss_` makes getopt take --db-prefix with
+# no value, then halt on `freshrss_`, silently dropping every flag that
+# follows — including --default-user, which was the canary symptom.
+# All optional-value flags must use --flag=value below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freshrss-init-script
+  namespace: freshrss
+  labels:
+    app.kubernetes.io/name: freshrss
+    app.kubernetes.io/instance: freshrss-${ENVIRONMENT}
+data:
+  bootstrap.sh: |
+    #!/bin/sh
+    set -eu
+    cd /var/www/FreshRSS
+
+    # Force-reinstall escape hatch. do-install.php exits 3 if
+    # data/applied_migrations.txt exists, regardless of whether config.php
+    # is actually present. After a credential rotation or PVC reuse, that
+    # marker can outlive a hand-cleaned data dir and silently block
+    # bootstrap from regenerating config.php — leaving FreshRSS booting
+    # against stale settings or missing per-user dirs.
+    #
+    # Set FRESHRSS_FORCE_REINSTALL=true on the deployment, restart the
+    # pod, then unset it once you confirm a healthy install. The DB
+    # schema must be cleaned separately (this container has no psql) —
+    # exec into the CNPG primary and DROP the freshrss_* tables before
+    # flipping this flag, or do-install.php will fail on CREATE TABLE.
+    case "${FRESHRSS_FORCE_REINSTALL:-}" in
+      1|true|TRUE|yes|YES)
+        echo "FRESHRSS_FORCE_REINSTALL set — clearing install markers"
+        rm -f data/applied_migrations.txt data/config.php data/config.php.bak.php
+        rm -rf "data/users/${ADMIN_USER}"
+        ;;
+    esac
+
+    php -f ./cli/do-install.php -- \
+      --api-enabled \
+      --base-url "https://${FRESHRSS_SUBDOMAIN}.th0th.dev" \
+      --db-type pgsql \
+      --db-host "$DB_HOST" \
+      --db-base "$DB_BASE" \
+      --db-user "$DB_USER" \
+      --db-password "$DB_PASSWORD" \
+      --db-prefix=freshrss_ \
+      --default-user "$ADMIN_USER" \
+      --auth-type form || [ $? -eq 3 ]
+
+    php -f ./cli/create-user.php -- \
+      --user "$ADMIN_USER" \
+      --password "$ADMIN_PASSWORD" \
+      --api-password "$ADMIN_PASSWORD" \
+      --email "$ADMIN_EMAIL" \
+      --language en \
+      || [ $? -eq 3 ]
+
+    # Apache on Alpine writes its pidfile to /run/apache2/. The image
+    # creates that directory at build time, but our emptyDir mount on /run
+    # wipes it. Recreate it here as UID 100 (apache) so httpd can start.
+    mkdir -p /run/apache2
+
+    unset FRESHRSS_INSTALL FRESHRSS_USER
+    exec ./Docker/entrypoint.sh "$@"

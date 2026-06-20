@@ -1,0 +1,11 @@
+---
+# external-snapshotter CRDs, pinned to v8.2.1 (matches the csi-snapshotter
+# sidecar image the democratic-csi chart bundles by default — see
+# _lib/storage/freenas-csi/helmrelease.yaml). Bump these and the
+# _lib/storage/snapshot-controller/ manifests together when upgrading.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - snapshot.storage.k8s.io_volumesnapshotclasses.yaml
+  - snapshot.storage.k8s.io_volumesnapshotcontents.yaml
+  - snapshot.storage.k8s.io_volumesnapshots.yaml

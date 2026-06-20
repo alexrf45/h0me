@@ -1,0 +1,41 @@
+---
+# Static PV for the authentik CNPG cluster data volume. See the freshrss
+# counterpart at _lib/applications/freshrss/overlays/dev/cnpg-static-pv.yaml
+# for the full rationale.
+#
+# Pre-created on TrueNAS:
+#   zvol:    dev-authentik-db (10Gi, parent: home-share/iscsi/k8s/dev/volumes)
+#   IQN:     iqn.2005-10.org.freenas.ctl:dev-authentik-db, LUN 0
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dev-authentik-db-pv
+  labels:
+    env: dev
+    app: authentik
+    component: database
+    persistent: "true"
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: authentik
+    name: authentik-${ENVIRONMENT}-cluster-1
+  csi:
+    driver: freenas-api-iscsi
+    fsType: ext4
+    volumeHandle: dev-authentik-db
+    volumeAttributes:
+      lun: "0"
+      interface: ""
+      node_attach_driver: iscsi
+      provisioner_driver: freenas-api-iscsi
+      portal: "192.168.20.106:3260"
+      portals: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:dev-authentik-db"

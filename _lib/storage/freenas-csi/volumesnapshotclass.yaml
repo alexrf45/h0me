@@ -1,0 +1,17 @@
+---
+# Snapshot class for the democratic-csi freenas-api-iscsi driver.
+#
+# deletionPolicy: Retain — when a VolumeSnapshot is deleted, the underlying
+# ZFS snapshot stays on TrueNAS. We rely on TrueNAS-side retention policy to
+# garbage-collect old snapshots, not the CSI driver. This mirrors the
+# iscsi StorageClass reclaim policy (Retain) — anything that holds data
+# survives a `kubectl delete` of its Kubernetes object until we explicitly
+# release the underlying TrueNAS resource.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: freenas-iscsi
+  labels:
+    velero.io/csi-volumesnapshot-class: "true"
+driver: freenas-api-iscsi
+deletionPolicy: Retain

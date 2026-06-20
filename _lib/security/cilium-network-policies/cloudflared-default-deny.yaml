@@ -1,0 +1,19 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: cloudflared-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: cloudflared
+spec:
+  description: |
+    Default-deny ingress + egress for every pod in the cloudflared namespace.
+    The companion CCNP (cloudflared-allow) carves out the needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: cloudflared
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

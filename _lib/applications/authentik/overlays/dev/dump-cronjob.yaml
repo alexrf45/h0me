@@ -1,0 +1,117 @@
+---
+# Daily logical pg_dump rip cord for authentik CNPG cluster (S-6).
+# See _docs/guides/cnpg-rescue.md for the restore procedure. Companion
+# CCNPs in _lib/security/cilium-network-policies/authentik-{cnpg,dump}-allow.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-authentik-dumps-pvc
+  namespace: authentik
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: iscsi
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: authentik-cnpg-dump
+  namespace: authentik
+  labels:
+    app: cnpg-dump
+    component: backup
+    target: authentik-${ENVIRONMENT}-cluster
+spec:
+  schedule: "30 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: cnpg-dump
+            target: authentik-${ENVIRONMENT}-cluster
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node: worker
+          securityContext:
+            runAsUser: 26
+            runAsGroup: 26
+            fsGroup: 26
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: ghcr.io/cloudnative-pg/postgresql:17.4-6@sha256:4ebb83ad6701cf90cd16f4c0b502676238ffdb1169bf27c5ae60e9a5bdc7b925
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                runAsUser: 26
+                runAsGroup: 26
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PGHOST
+                  value: authentik-${ENVIRONMENT}-cluster-rw
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: authentik
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: authentik-env
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: authentik-env
+                      key: password
+              command:
+                - bash
+                - -c
+                - |
+                  set -euo pipefail
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  out="/backup/authentik-$stamp.dump"
+                  echo "[cnpg-dump] $PGHOST/$PGDATABASE -> $out"
+                  pg_dump --format=custom --no-owner --no-acl --file="$out"
+                  bytes="$(stat -c %s "$out")"
+                  if [ "$bytes" -lt 1024 ]; then
+                    echo "[cnpg-dump] dump suspiciously small ($bytes bytes)" >&2
+                    exit 1
+                  fi
+                  echo "[cnpg-dump] wrote $bytes bytes"
+                  ls -1t /backup/authentik-*.dump | tail -n +15 | xargs -r rm -fv
+                  echo "[cnpg-dump] retention sweep complete"
+                  ls -lh /backup/authentik-*.dump
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: dev-authentik-dumps-pvc
+            - name: tmp
+              emptyDir: {}

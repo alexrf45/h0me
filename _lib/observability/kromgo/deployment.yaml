@@ -1,0 +1,104 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kromgo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kromgo
+    app.kubernetes.io/instance: kromgo-${ENVIRONMENT}
+    app.kubernetes.io/version: "${KROMGO_VERSION}"
+    environment: "${ENVIRONMENT}"
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: kromgo
+  template:
+    metadata:
+      labels:
+        app: kromgo
+        app.kubernetes.io/name: kromgo
+        app.kubernetes.io/instance: kromgo-${ENVIRONMENT}
+        app.kubernetes.io/version: "${KROMGO_VERSION}"
+        node: worker
+    spec:
+      nodeSelector:
+        node: "worker"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+        runAsGroup: 2000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kromgo
+          image: ghcr.io/kashalls/kromgo:${KROMGO_VERSION}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            # runAsUser set explicitly: Kyverno add-default-securitycontext
+            # would mutate an unset runAsUser to 65534; kromgo image is happy
+            # at 2000 (matches bjw-s reference deployment).
+            runAsNonRoot: true
+            runAsUser: 2000
+            runAsGroup: 2000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: PROMETHEUS_URL
+              value: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+            - name: SERVER_PORT
+              value: "8080"
+            - name: HEALTH_HOST
+              value: "0.0.0.0"
+            - name: HEALTH_PORT
+              value: "8888"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8888
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /kromgo/config.yaml
+              subPath: config.yaml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: kromgo-config
+            items:
+              - key: config.yaml
+                path: config.yaml

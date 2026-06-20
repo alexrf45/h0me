@@ -1,0 +1,26 @@
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: ts-proxies
+spec:
+  type: ingress
+  replicas: 3
+---
+# Egress ProxyGroup — provides outbound tailnet connectivity for in-cluster
+# workloads via ExternalName Services annotated with
+# tailscale.com/proxy-group: ts-egress. Currently fronts the bare-metal
+# Loki host (loki-egress Service in this namespace).
+#
+# Runs with the operator-default ProxyClass (kernel mode). Egress proxies
+# install iptables NAT rules in the pod netns to translate Service traffic
+# to tailnet endpoints — that needs privileged + root, which the userspace
+# ProxyClass cannot satisfy. The privileged surface is gated by the
+# `restrict-privileged-tailscale` Kyverno ClusterPolicy: only operator-
+# managed ts-* pods may run privileged main containers in this namespace.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: ts-egress
+spec:
+  type: egress
+  replicas: 2

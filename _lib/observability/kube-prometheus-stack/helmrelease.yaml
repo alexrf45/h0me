@@ -1,0 +1,308 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+      version: "78.0.0"
+  interval: 30m
+  install:
+    crds: Skip
+    remediation:
+      retries: -1
+  upgrade:
+    crds: Skip
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: -1
+  targetNamespace: monitoring
+  values:
+    crds:
+      enabled: false
+
+    fullnameOverride: kps
+
+    defaultRules:
+      create: true
+
+    alertmanager:
+      alertmanagerSpec:
+        secrets:
+          - slack-webhook
+        storage:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: iscsi
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 5Gi
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            memory: 200Mi
+      config:
+        global:
+          resolve_timeout: 5m
+        route:
+          receiver: slack-warning
+          group_by: ["alertname", "namespace"]
+          group_wait: 30s
+          group_interval: 30m
+          repeat_interval: 12h
+          routes:
+            # Synthetic / heartbeat alerts shipped by kube-prometheus-stack
+            # that are not meant for humans: Watchdog always fires (deadman
+            # snitch), InfoInhibitor is severity=none and exists solely to
+            # inhibit info alerts via the inhibit_rule below.
+            - matchers:
+                - alertname = "Watchdog"
+              receiver: "null"
+            - matchers:
+                - alertname = "InfoInhibitor"
+              receiver: "null"
+            - matchers:
+                - severity = "info"
+              receiver: "null"
+            - matchers:
+                - severity = "none"
+              receiver: "null"
+            - matchers:
+                - severity = "critical"
+              receiver: slack-critical
+              group_wait: 10s
+              repeat_interval: 1h
+              continue: false
+            - matchers:
+                - severity = "warning"
+              receiver: slack-warning
+              continue: false
+        inhibit_rules:
+          - source_matchers:
+              - severity = "critical"
+            target_matchers:
+              - severity = "warning"
+            equal: ["alertname", "namespace"]
+          - source_matchers:
+              - alertname = "InfoInhibitor"
+            target_matchers:
+              - severity = "info"
+            equal: ["namespace"]
+        receivers:
+          - name: "null"
+          - name: slack-critical
+            slack_configs:
+              - api_url_file: /etc/alertmanager/secrets/slack-webhook/url
+                channel: "#alerts"
+                send_resolved: true
+                color: danger
+                title: ':rotating_light: [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.namespace }})'
+                text: |-
+                  *Cluster:* `${CLUSTER_NAME}` (`${ENVIRONMENT}`)
+                  {{ range .Alerts }}
+                  *Severity:* `{{ .Labels.severity }}`
+                  *Namespace:* `{{ .Labels.namespace }}`
+                  *Pod:* `{{ .Labels.pod }}`
+                  *Summary:* {{ .Annotations.summary }}
+                  *Description:* {{ .Annotations.description }}
+                  {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+                  {{ end }}
+          - name: slack-warning
+            slack_configs:
+              - api_url_file: /etc/alertmanager/secrets/slack-webhook/url
+                channel: "#alerts"
+                send_resolved: true
+                color: warning
+                title: ':warning: [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.namespace }})'
+                text: |-
+                  *Cluster:* `${CLUSTER_NAME}` (`${ENVIRONMENT}`)
+                  {{ range .Alerts }}
+                  *Severity:* `{{ .Labels.severity }}`
+                  *Namespace:* `{{ .Labels.namespace }}`
+                  *Pod:* `{{ .Labels.pod }}`
+                  *Summary:* {{ .Annotations.summary }}
+                  *Description:* {{ .Annotations.description }}
+                  {{ end }}
+
+    prometheus:
+      prometheusSpec:
+        retention: 15d
+        retentionSize: 45GB
+        scrapeInterval: 30s
+        evaluationInterval: 30s
+        # Pick up every ServiceMonitor / PodMonitor / Probe / Rule / ScrapeConfig
+        # cluster-wide, regardless of label. Required so Hubble, Falco, and
+        # cert-manager monitors are scraped without us having to label them.
+        serviceMonitorSelectorNilUsesHelmValues: false
+        podMonitorSelectorNilUsesHelmValues: false
+        probeSelectorNilUsesHelmValues: false
+        ruleSelectorNilUsesHelmValues: false
+        scrapeConfigSelectorNilUsesHelmValues: false
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              storageClassName: iscsi
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 50Gi
+        resources:
+          requests:
+            cpu: 200m
+            memory: 1Gi
+          limits:
+            memory: 2Gi
+
+    grafana:
+      enabled: true
+      defaultDashboardsEnabled: true
+      admin:
+        existingSecret: grafana-admin-credentials
+        userKey: admin-user
+        passwordKey: admin-password
+      # OIDC client credentials sourced from grafana-oidc Secret
+      # (produced by external-secret-oidc.yaml). Grafana picks up
+      # GF_AUTH_GENERIC_OAUTH_* env vars at startup; they take
+      # precedence over any matching grafana.ini values.
+      envValueFrom:
+        GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+          secretKeyRef:
+            name: grafana-oidc
+            key: client_id
+        GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+          secretKeyRef:
+            name: grafana-oidc
+            key: client_secret
+      grafana.ini:
+        server:
+          root_url: "https://${GRAFANA_SUBDOMAIN}.th0th.dev/"
+        auth:
+          # SSO-only: the local username/password login form is hidden so
+          # Authentik (auth.generic_oauth below) is the only interactive path.
+          # Break-glass for the local admin (grafana-admin-credentials secret):
+          # temporarily flip this back to false via GitOps, OR port-forward the
+          # grafana svc and POST the admin creds to /login (the API honors them
+          # even when the form is hidden).
+          disable_login_form: true
+          oauth_auto_login: false
+        auth.generic_oauth:
+          enabled: true
+          name: Authentik
+          icon: signin
+          # entitlements scope follows the canonical Authentik Grafana
+          # integration pattern (per-app role bindings, not global
+          # groups). The Authentik provider must have
+          # "authentik default OAuth Mapping: OpenID 'entitlements'"
+          # added to Selected Scopes, and the Application's
+          # "Application entitlements" tab must define Grafana Admins
+          # / Grafana Editors / Grafana Viewers entitlements bound to
+          # the appropriate users or groups. See
+          # _docs/grafana-oidc-setup.md.
+          scopes: "openid email profile entitlements offline_access"
+          empty_scopes: false
+          allow_sign_up: true
+          auto_login: false
+          use_pkce: true
+          use_refresh_token: true
+          auth_url: "https://${AUTHENTIK_SUBDOMAIN}.th0th.dev/application/o/authorize/"
+          token_url: "https://${AUTHENTIK_SUBDOMAIN}.th0th.dev/application/o/token/"
+          api_url: "https://${AUTHENTIK_SUBDOMAIN}.th0th.dev/application/o/userinfo/"
+          # JMESPath against the userinfo response. Falls through to
+          # Viewer when the user is in none of the mapped entitlements.
+          role_attribute_path: "contains(entitlements, 'Grafana Admins') && 'Admin' || contains(entitlements, 'Grafana Editors') && 'Editor' || 'Viewer'"
+          # Server-admin (super-admin) is not assignable via OIDC.
+          # Promote a user with `grafana-cli` if needed.
+          allow_assign_grafana_admin: false
+      persistence:
+        enabled: true
+        type: pvc
+        storageClassName: iscsi
+        accessModes: ["ReadWriteOnce"]
+        size: 5Gi
+      serviceMonitor:
+        enabled: true
+      # In-cluster Loki datasource pointing at the bare-metal Loki host
+      # via the Tailscale operator egress Service.
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki-egress.tailscale.svc.cluster.local:3100
+          isDefault: false
+          jsonData:
+            maxLines: 1000
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+
+    # Talos hides controller-manager / scheduler / etcd from the default
+    # endpoints used by kube-prometheus-stack, and Cilium replaces kube-proxy.
+    # Re-enable these once node IPs are wired in (or expose via Talos config).
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+    kubeProxy:
+      enabled: false
+
+    kubeApiServer:
+      enabled: true
+      serviceMonitor:
+        # Drop the two highest-cardinality apiserver histograms. They are the
+        # biggest memory lever against Prometheus' 2Gi cap; keeping _count/_sum
+        # (dropped here is only _bucket) still yields rates/averages, only the
+        # quantile estimation is lost.
+        metricRelabelings:
+          - sourceLabels: [__name__]
+            regex: "apiserver_request_duration_seconds_bucket|apiserver_response_sizes_bucket"
+            action: drop
+    kubelet:
+      enabled: true
+
+    nodeExporter:
+      enabled: true
+    prometheus-node-exporter:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 30Mi
+        limits:
+          memory: 60Mi
+
+    kube-state-metrics:
+      resources:
+        requests:
+          cpu: 20m
+          memory: 50Mi
+        limits:
+          memory: 100Mi
+
+    prometheusOperator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 100Mi
+        limits:
+          memory: 200Mi
+      admissionWebhooks:
+        patch:
+          resources:
+            requests:
+              cpu: 20m
+              memory: 30Mi

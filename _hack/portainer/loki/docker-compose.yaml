@@ -1,0 +1,138 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:v1.98.4
+    container_name: loki-tailscale
+    hostname: loki
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY}
+      TS_HOSTNAME: loki
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_USERSPACE: "false"
+      TS_EXTRA_ARGS: "--advertise-tags=tag:loki --accept-dns=true"
+    volumes:
+      - /data/loki/tailscale-state:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--peers=false"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  loki:
+    image: grafana/loki:3.4.1
+    container_name: loki
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    network_mode: "service:tailscale"
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    configs:
+      - source: loki-config
+        target: /etc/loki/loki-config.yaml
+        mode: 0444
+    volumes:
+      - /backups/loki:/loki
+    user: "10001:10001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+configs:
+  loki-config:
+    content: |
+      auth_enabled: false
+
+      server:
+        http_listen_port: 3100
+        grpc_listen_port: 9095
+        log_level: info
+
+      common:
+        path_prefix: /loki
+        replication_factor: 1
+        ring:
+          kvstore:
+            store: inmemory
+        storage:
+          filesystem:
+            chunks_directory: /loki/chunks
+            rules_directory: /loki/rules
+
+      schema_config:
+        configs:
+          - from: 2026-01-01
+            store: tsdb
+            object_store: filesystem
+            schema: v13
+            index:
+              prefix: index_
+              period: 24h
+
+      storage_config:
+        tsdb_shipper:
+          active_index_directory: /loki/tsdb-index
+          cache_location: /loki/tsdb-cache
+          cache_ttl: 24h
+        filesystem:
+          directory: /loki/chunks
+
+      compactor:
+        working_directory: /loki/compactor
+        compaction_interval: 30m
+        retention_enabled: true
+        retention_delete_delay: 2h
+        retention_delete_worker_count: 50
+        delete_request_store: filesystem
+
+      limits_config:
+        reject_old_samples: true
+        reject_old_samples_max_age: 168h
+        retention_period: 720h
+        max_query_lookback: 720h
+        ingestion_rate_mb: 16
+        ingestion_burst_size_mb: 32
+        max_global_streams_per_user: 50000
+        volume_enabled: true
+
+      ruler:
+        storage:
+          type: local
+          local:
+            directory: /loki/rules
+        rule_path: /loki/rules-tmp
+        alertmanager_url: ""
+        ring:
+          kvstore:
+            store: inmemory
+        enable_api: true
+
+      ingester:
+        chunk_idle_period: 30m
+        chunk_target_size: 1572864
+        max_chunk_age: 2h
+        wal:
+          enabled: true
+          dir: /loki/wal
+
+      query_range:
+        align_queries_with_step: true
+        cache_results: true
+        results_cache:
+          cache:
+            embedded_cache:
+              enabled: true
+              max_size_mb: 256
+
+      frontend:
+        log_queries_longer_than: 5s
+
+      analytics:
+        reporting_enabled: false
