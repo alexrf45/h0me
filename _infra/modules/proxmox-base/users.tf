@@ -109,7 +109,11 @@ resource "proxmox_user_token" "automation" {
 }
 
 # Publish the token to 1Password (mirrors terraform/cloudflare-tunnel/main.tf).
-# `api-token` is the ready-to-use provider value: terraform@pve!tf=<secret>.
+# IMPORTANT: bpg's `.value` is ALREADY the full, ready-to-use provider token
+# (`user@realm!tokenname=uuid`) — the client returns `FullTokenID + "=" + Value`
+# (proxmox/access/user_token.go:40), NOT a bare UUID secret. So `api-token` must
+# be `.value` verbatim. Prefixing it with `.id` again doubles the
+# `user@realm!tokenname=` segment and the provider rejects it with HTTP 401.
 resource "onepassword_item" "automation_token" {
   vault    = var.op_vault_id
   title    = var.automation.op_item_title
@@ -123,15 +127,11 @@ resource "onepassword_item" "automation_token" {
       type  = "STRING"
       value = proxmox_user_token.automation.id
     }
-    field {
-      label = "token-secret"
-      type  = "CONCEALED"
-      value = proxmox_user_token.automation.value
-    }
+    # Full provider token: terraform@pve!tf=<uuid>. Use this for TF_VAR_pve_api_token.
     field {
       label = "api-token"
       type  = "CONCEALED"
-      value = "${proxmox_user_token.automation.id}=${proxmox_user_token.automation.value}"
+      value = proxmox_user_token.automation.value
     }
   }
 }
