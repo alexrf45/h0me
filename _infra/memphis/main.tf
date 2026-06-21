@@ -1,5 +1,5 @@
 module "dev" {
-  source = "../modules/talos-pve-v3.1.0"
+  source = "../modules/talos-pve"
   #source        = "git@github.com:alexrf45/lab.git//talos-pve?ref=v0.0.1"
   env                = var.env
   bootstrap_cluster  = var.bootstrap_cluster

@@ -48,7 +48,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 15m
-  path: ./global/crds
+  path: ./_global/crds
   prune: true
   force: true
   sourceRef:

@@ -5,6 +5,5 @@ resources:
   - ./authentik
   - ./cert-manager
   - ./cloudnativepg
-  - ./falco
   - ./kyverno
   - ./renovate

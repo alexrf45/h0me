@@ -5,9 +5,11 @@ provider "proxmox" {
   endpoint = "https://${var.pve.endpoint}:8006"
   username = "root@pam"
   password = var.pve.password
+  #api_token = var.pve.api_token
   insecure = true
   ssh {
     agent = false
+    #username = "terraform"
   }
 }
 

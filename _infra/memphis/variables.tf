@@ -23,11 +23,14 @@ variable "pve" {
     endpoint      = string
     iso_datastore = optional(string, "local")
     gateway       = string
-    password      = string
-
+    password      = optional(string, "")
+    bridge        = optional(string, "vmbr0")
+    api_token     = optional(string, "")
   })
   sensitive = true
 }
+
+
 variable "talos" {
   description = "Cluster configuration"
   type = object({
