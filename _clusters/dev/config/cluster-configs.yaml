@@ -13,7 +13,9 @@ data:
   TRUENAS_PORT: "443"
   TRUENAS_USERNAME: "truenas_admin"
   TRUENAS_ISCSI_PORTAL: "192.168.20.106:3260"
-  DATASET_PARENT: "home-share/k8s/dev"
+  # Must NOT overlap: democratic-csi rejects a snapshots parent nested under
+  # the volumes parent (gRPC code 9). Kept as siblings under dev.
+  DATASET_PARENT: "home-share/k8s/dev/volumes"
   DATASET_SNAPSHOTS: "home-share/k8s/dev/snapshots"
   STORAGE_CLASS_NAME: "iscsi"
   # Retain so PVs survive a PVC delete — TrueNAS owns the data lifecycle.
