@@ -1,5 +1,4 @@
-env               = "dev"
-bootstrap_cluster = true
+env = "dev"
 
 talos = {
   name     = "abydos"
@@ -102,9 +101,10 @@ worker_nodes = {
   }
 }
 
+kubernetes_version = "v1.36.0"
+
 cilium_config = {
   node_network               = "192.168.20.0/24"
-  kube_version               = "1.35.0"
   cilium_version             = "1.19.4"
   hubble_enabled             = false
   hubble_ui_enabled          = false
@@ -122,14 +122,6 @@ cilium_config = {
 # Export kubeconfig + talosconfig to 1Password (items: <cluster>-kubeconfig / <cluster>-talosconfig)
 config_export = {
   enabled = true
-}
-
-worker_labels = {
-  enabled = true
-  labels = {
-    "node-role.kubernetes.io/worker" = "true"
-    "node"                           = "worker"
-  }
 }
 
 flux_config = {

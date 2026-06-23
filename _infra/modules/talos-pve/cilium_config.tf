@@ -7,9 +7,8 @@ data "helm_template" "this" {
 
   chart        = "cilium"
   version      = var.cilium_config.cilium_version
-  kube_version = var.cilium_config.kube_version
+  kube_version = trimprefix(var.kubernetes_version, "v")
   include_crds = true
-
   values = [
     yamlencode({
       resources = {
@@ -112,4 +111,25 @@ data "helm_template" "this" {
       }
     })
   ]
+}
+
+locals {
+  _cilium_docs = [
+    for doc in split("\n---\n", data.helm_template.this.manifest) :
+    yamldecode(doc)
+    if trimspace(doc) != "" && try(yamldecode(doc), null) != null
+  ]
+  cilium_owned_manifest = join("\n---\n", [
+    for obj in local._cilium_docs : yamlencode(merge(obj, {
+      metadata = merge(try(obj.metadata, {}), {
+        labels = merge(try(obj.metadata.labels, {}), {
+          "app.kubernetes.io/managed-by" = "Helm"
+        })
+        annotations = merge(try(obj.metadata.annotations, {}), {
+          "meta.helm.sh/release-name"      = "cilium"
+          "meta.helm.sh/release-namespace" = var.cilium_config.namespace
+        })
+      })
+    }))
+  ])
 }

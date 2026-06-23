@@ -1,4 +1,4 @@
-# outputs.tf - Module outputs for talos-pve v3.1.0
+# outputs.tf - Module outputs for talos-pve
 
 output "talos_config" {
   value     = data.talos_client_configuration.this.talos_config
@@ -11,7 +11,7 @@ output "kubeconfig" {
 }
 
 output "machineconfig" {
-  value     = values(talos_machine_configuration_apply.controlplane)[0].machine_configuration
+  value     = values(data.talos_machine_configuration.controlplane)[0].machine_configuration
   sensitive = true
 }
 
@@ -44,25 +44,25 @@ output "worker_node_names" {
 
 output "post_deployment_instructions" {
   value       = <<-EOT
- 
+
     ============================================================
-    Cluster "${var.talos.name}" Deployment Complete! (v3.1.0)
+    Cluster "${var.talos.name}" Deployment Complete!
     ============================================================
- 
-    ${var.worker_labels.enabled ? "✓ Worker node labels applied" : "⚠ Worker labeling disabled"}
- 
+
+    Kubernetes ${var.kubernetes_version} · worker labels applied by Kyverno
+
     Verify cluster:
        kubectl --kubeconfig KUBECONFIG get nodes
- 
+
     Merge kubeconfig (optional):
        cp ~/.kube/config ~/.kube/config_bk && \
        KUBECONFIG=~/.kube/environments/dev:~/.kube/environments/prod:~/.kube/environments/test \
        kubectl config view --flatten > ~/.kube/config_tmp && \
        mv ~/.kube/config_tmp ~/.kube/config
- 
-    For day-2 operations, set bootstrap_cluster = false
-    to prevent bootstrap failures on subsequent applies.
- 
+
+    Day-2: talos_cluster is idempotent (no bootstrap_cluster flag). OS upgrades
+    flow by bumping the installer image tag; k8s upgrades by kubernetes_version.
+
     ============================================================
   EOT
   description = "Post-deployment instructions"

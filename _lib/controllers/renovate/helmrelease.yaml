@@ -34,12 +34,23 @@ spec:
             "global/.+\\.yaml$",
             "**/kustomization.yaml",
             "**/helmrelease.yaml",
-            "**/deployment.yaml"
+            "**/deployment.yaml",
+            "_infra/modules/talos-pve/variables.tf"
+          ],
+
+          "customManagers": [
+            {
+              "customType": "regex",
+              "fileMatch": ["^_infra/modules/talos-pve/variables\\.tf$"],
+              "matchStrings": [
+                "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)[\\s\\S]+?default\\s*=\\s*\"(?<currentValue>v[0-9.]+)\""
+              ],
+              "versioningTemplate": "semver"
+            }
           ],
 
           "ignorePaths": [
             "**/terraform/**",
-            "**/*.tf",
             "**/*.tfvars",
             "**/terraform.tfstate*",
             "**/.terraform/**",

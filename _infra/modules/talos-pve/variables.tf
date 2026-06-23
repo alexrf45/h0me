@@ -130,15 +130,6 @@ variable "worker_nodes" {
 }
 
 
-# Bootstrap Control
-
-variable "bootstrap_cluster" {
-  description = "Whether to bootstrap the cluster. Set to false after initial deployment to prevent bootstrap failures on re-apply."
-  type        = bool
-  default     = true
-}
-
-
 # DNS
 
 variable "nameservers" {
@@ -155,6 +146,20 @@ variable "nameservers" {
 }
 
 
+# Kubernetes
+
+# renovate: datasource=github-releases depName=kubernetes/kubernetes
+variable "kubernetes_version" {
+  description = "Kubernetes version installed by Talos and advertised to the Cilium helm template. Standalone (not nested in cilium_config) so Renovate can bump it. Stored v-prefixed; consumers needing the bare form use trimprefix()."
+  type        = string
+  default     = "v1.36.0"
+  validation {
+    condition     = can(regex("^v[0-9]+\\.[0-9]+\\.[0-9]+$", var.kubernetes_version))
+    error_message = "kubernetes_version must be v-prefixed semver, e.g. v1.36.0."
+  }
+}
+
+
 # Cilium CNI
 
 variable "cilium_config" {
@@ -162,7 +167,6 @@ variable "cilium_config" {
   type = object({
     namespace                  = optional(string, "networking")
     node_network               = string
-    kube_version               = string
     cilium_version             = string
     hubble_enabled             = optional(bool, false)
     hubble_ui_enabled          = optional(bool, false)
@@ -179,7 +183,6 @@ variable "cilium_config" {
   default = {
     namespace                  = "networking"
     node_network               = "192.168.20.0/24"
-    kube_version               = "1.35.0"
     cilium_version             = "1.19.4"
     hubble_enabled             = false
     hubble_ui_enabled          = false
@@ -202,23 +205,5 @@ variable "config_export" {
   })
   default = {
     enabled = true
-  }
-}
-
-variable "worker_labels" {
-  description = "Labels to apply to worker nodes after bootstrap"
-  type = object({
-    enabled = optional(bool, true)
-    labels = optional(map(string), {
-      "node-role.kubernetes.io/worker" = "true"
-      "node"                           = "worker"
-    })
-  })
-  default = {
-    enabled = true
-    labels = {
-      "node-role.kubernetes.io/worker" = "true"
-      "node"                           = "worker"
-    }
   }
 }

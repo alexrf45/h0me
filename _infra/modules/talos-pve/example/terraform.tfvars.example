@@ -1,8 +1,7 @@
-# terraform.tfvars.example - Example configuration for talos-pve v3.1.0
+# terraform.tfvars.example - Example configuration for talos-pve
 
-env               = "test"
-bootstrap_cluster = true
-op_vault_id       = "" # UUID of the 1Password vault holding infra secrets (kubeconfig/talosconfig/age key)
+env         = "test"
+op_vault_id = "" # UUID of the 1Password vault holding infra secrets (kubeconfig/talosconfig/age key)
 
 talos = {
   name     = "abydos"
@@ -105,9 +104,10 @@ worker_nodes = {
   }
 }
 
+kubernetes_version = "v1.36.0"
+
 cilium_config = {
   node_network               = "10.3.3.0/24"
-  kube_version               = "1.35.0"
   cilium_version             = "1.19.4"
   hubble_enabled             = false
   hubble_ui_enabled          = false
@@ -127,16 +127,7 @@ config_export = {
   enabled = true
 }
 
-# v3.1.0 - Worker labels (defaults are usually fine)
-worker_labels = {
-  enabled = true
-  labels = {
-    "node-role.kubernetes.io/worker" = "true"
-    "node"                           = "worker"
-  }
-}
-
-# v3.1.0 - Flux GitOps bootstrap
+# Flux GitOps bootstrap
 flux_config = {
   enabled           = true
   git_url           = "ssh://git@github.com/alexrf45/home-ops.git"

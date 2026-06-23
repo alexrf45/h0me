@@ -18,7 +18,7 @@ data "talos_machine_configuration" "controlplane" {
   cluster_name       = var.talos.name
   cluster_endpoint   = "https://${var.talos.endpoint}:6443"
   talos_version      = var.talos.version
-  kubernetes_version = var.cilium_config.kube_version
+  kubernetes_version = trimprefix(var.kubernetes_version, "v")
   machine_type       = "controlplane"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   config_patches = [
@@ -107,13 +107,26 @@ ${chomp(local.machine_common)}
           {
             name = "cilium"
             contents = join("---\n", [
-              data.helm_template.this.manifest,
+              local.cilium_owned_manifest,
               "# Source cilium.tf\n${local.cilium_lb_manifest}",
             ])
           }
         ]
       }
     }),
+    # Per-node hostname + scheduling. Moved here from the former
+    # talos_machine_configuration_apply (talos_machine has no config_patches).
+    <<-EOT
+    ---
+    apiVersion: v1alpha1
+    kind: HostnameConfig
+    auto: off
+    hostname: ${var.env}-${var.talos.name}-cp-${random_id.this[each.key].hex}
+    ---
+    version: v1alpha1
+    cluster:
+      allowSchedulingOnControlPlanes: ${each.value.allow_scheduling}
+    EOT
   ]
 }
 
@@ -123,7 +136,7 @@ data "talos_machine_configuration" "worker" {
   cluster_name       = var.talos.name
   cluster_endpoint   = "https://${var.talos.endpoint}:6443"
   talos_version      = var.talos.version
-  kubernetes_version = var.cilium_config.kube_version
+  kubernetes_version = trimprefix(var.kubernetes_version, "v")
   machine_type       = "worker"
   machine_secrets    = talos_machine_secrets.this.machine_secrets
   config_patches = [
@@ -155,57 +168,9 @@ ${chomp(local.machine_common)}
           - interface: eth0
             dhcp: false
     EOT
-  ]
-}
-
-
-resource "talos_machine_configuration_apply" "controlplane" {
-  depends_on = [
-    proxmox_virtual_environment_vm.controlplane,
-    data.talos_machine_configuration.controlplane,
-  ]
-  apply_mode = "auto"
-  for_each   = var.controlplane_nodes
-  node       = each.value.ip
-
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.controlplane[each.key].machine_configuration
-
-  config_patches = [
-    <<-EOT
-    ---
-    apiVersion: v1alpha1
-    kind: HostnameConfig
-    auto: off
-    hostname: ${var.env}-${var.talos.name}-cp-${random_id.this[each.key].hex}
-    ---
-    version: v1alpha1
-    cluster:
-      allowSchedulingOnControlPlanes: ${each.value.allow_scheduling}
-    EOT
-  ]
-
-  timeouts = {
-    create = "5m"
-  }
-  lifecycle {
-    replace_triggered_by = [proxmox_virtual_environment_vm.controlplane[each.key]]
-  }
-}
-
-resource "talos_machine_configuration_apply" "worker" {
-  depends_on = [
-    proxmox_virtual_environment_vm.worker,
-    data.talos_machine_configuration.worker,
-    talos_machine_configuration_apply.controlplane
-  ]
-  apply_mode = "auto"
-  for_each   = var.worker_nodes
-  node       = each.value.ip
-
-  client_configuration        = talos_machine_secrets.this.client_configuration
-  machine_configuration_input = data.talos_machine_configuration.worker[each.key].machine_configuration
-  config_patches = [
+    ,
+    # Per-node hostname. Moved here from the former
+    # talos_machine_configuration_apply (talos_machine has no config_patches).
     <<-EOT
     ---
     apiVersion: v1alpha1
@@ -214,8 +179,75 @@ resource "talos_machine_configuration_apply" "worker" {
     hostname: ${var.env}-${var.talos.name}-node-${random_id.this[each.key].hex}
     EOT
   ]
+}
+
+
+# Ephemeral kubeconfig derived from machine_secrets only (no running-cluster
+# dependency), used solely to satisfy talos_machine.drain_on_upgrade without a
+# kubeconfig -> cluster -> machine cycle. Drain only fires on upgrades.
+ephemeral "talos_cluster_kubeconfig" "this" {
+  cluster_name    = var.talos.name
+  machine_secrets = talos_machine_secrets.this.machine_secrets
+  endpoint        = "https://${var.talos.endpoint}:6443"
+}
+
+
+resource "talos_machine" "controlplane" {
+  for_each = var.controlplane_nodes
+  depends_on = [
+    proxmox_virtual_environment_vm.controlplane,
+    data.talos_machine_configuration.controlplane,
+  ]
+
+  node                  = each.value.ip
+  client_configuration  = talos_machine_secrets.this.client_configuration
+  machine_configuration = data.talos_machine_configuration.controlplane[each.key].machine_configuration
+
+  # installer image drives in-place OS upgrades + drift detection (decoupled
+  # from the Proxmox VM disk, which is boot media only).
+  image            = data.talos_image_factory_urls.controlplane.urls.installer
+  drain_on_upgrade = true
+  kubeconfig_wo    = ephemeral.talos_cluster_kubeconfig.this.kubeconfig_raw
+
+  # graceful etcd leave on node removal (fixes README scale-down caveat).
+  on_destroy = {
+    reset    = true
+    graceful = true
+  }
+
   timeouts = {
-    create = "5m"
+    create = "10m"
+    update = "10m"
+  }
+  lifecycle {
+    replace_triggered_by = [proxmox_virtual_environment_vm.controlplane[each.key]]
+  }
+}
+
+resource "talos_machine" "worker" {
+  for_each = var.worker_nodes
+  depends_on = [
+    proxmox_virtual_environment_vm.worker,
+    data.talos_machine_configuration.worker,
+    talos_machine.controlplane,
+  ]
+
+  node                  = each.value.ip
+  client_configuration  = talos_machine_secrets.this.client_configuration
+  machine_configuration = data.talos_machine_configuration.worker[each.key].machine_configuration
+
+  image            = data.talos_image_factory_urls.worker.urls.installer
+  drain_on_upgrade = true
+  kubeconfig_wo    = ephemeral.talos_cluster_kubeconfig.this.kubeconfig_raw
+
+  on_destroy = {
+    reset    = true
+    graceful = true
+  }
+
+  timeouts = {
+    create = "10m"
+    update = "10m"
   }
   lifecycle {
     replace_triggered_by = [proxmox_virtual_environment_vm.worker[each.key]]
@@ -223,39 +255,30 @@ resource "talos_machine_configuration_apply" "worker" {
 }
 
 
-resource "time_sleep" "wait_until_apply" {
+# Bootstraps etcd and gates on Talos-layer health (idempotent on an
+# already-bootstrapped cluster — replaces talos_machine_bootstrap + the two
+# fixed time_sleep waits). kubernetes_version is authoritative for k8s upgrades.
+resource "talos_cluster" "this" {
   depends_on = [
-    talos_machine_configuration_apply.controlplane,
-    talos_machine_configuration_apply.worker
+    talos_machine.controlplane,
+    talos_machine.worker,
   ]
-  create_duration = "30s"
-}
 
-resource "talos_machine_bootstrap" "this" {
-  count = var.bootstrap_cluster ? 1 : 0
-  depends_on = [
-    time_sleep.wait_until_apply,
-    talos_machine_configuration_apply.controlplane,
-    talos_machine_configuration_apply.worker
-  ]
-  node                 = var.talos.endpoint
-  endpoint             = var.talos.endpoint
+  node                 = values(var.controlplane_nodes)[0].ip
+  control_plane_nodes  = [for k, v in var.controlplane_nodes : v.ip]
+  kubernetes_version   = var.kubernetes_version
   client_configuration = talos_machine_secrets.this.client_configuration
+
   timeouts = {
-    create = "3m"
+    create = "10m"
+    update = "10m"
   }
 }
 
-resource "time_sleep" "wait_until_bootstrap" {
-  depends_on = [
-    talos_machine_bootstrap.this
-  ]
-  create_duration = "30s"
-}
 
 resource "talos_cluster_kubeconfig" "this" {
   depends_on = [
-    time_sleep.wait_until_bootstrap
+    talos_cluster.this
   ]
   node                 = var.talos.endpoint
   endpoint             = var.talos.endpoint

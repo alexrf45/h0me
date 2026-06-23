@@ -14,11 +14,24 @@ Defined in `_clusters/dev/cluster.yaml`. Each layer depends on the one above it:
 10. **security** — Cilium NetworkPolicies, Kyverno policies
 11. **applications** — App workloads (currently only wallabag, using `_lib/applications/wallabag/overlays/dev`)
 
+## Bootstrap (Flux Operator)
+
+Flux is bootstrapped by the **Flux Operator**, not the classic `flux bootstrap` /
+`flux_bootstrap_git`. Terraform (`_infra/memphis/main.tf`) installs two Helm releases
+once — `flux-operator` and `flux-instance` (the `FluxInstance` CR, name `flux`, whose
+`spec.sync` points a GitRepository `flux-system` at `_clusters/dev`) — plus the
+`sops-age` and git-auth secrets. Those same releases are then represented in Git
+(`_lib/controllers/flux-operator/`, `_lib/controllers/flux-instance/`) so Flux adopts
+and self-manages them; Renovate bumps the chart OCIRepository tags. Cilium is likewise
+bootstrapped minimally inline by Talos and adopted by `_lib/networking/cilium/`. There
+are no `gotk-components.yaml`/`gotk-sync.yaml` files. See
+`_docs/migrations/flux-operator-and-cilium-handover.md`.
+
 ## Secrets flow
 
 1Password secrets → 1Password Connect → External Secrets Operator → Kubernetes secrets
 
-SOPS-encrypted secrets are decrypted by Flux using the `sops-age` secret in `flux-system`. The Age key comes from 1Password during bootstrap (see `terraform/dev/main.tf`).
+SOPS-encrypted secrets are decrypted by Flux using the `sops-age` secret in `flux-system`. The Age key comes from 1Password during bootstrap (see `_infra/memphis/main.tf`).
 
 ## Application pattern
 

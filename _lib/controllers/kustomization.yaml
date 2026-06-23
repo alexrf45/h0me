@@ -5,5 +5,7 @@ resources:
   - ./authentik
   - ./cert-manager
   - ./cloudnativepg
+  - ./flux-operator
+  - ./flux-instance
   - ./kyverno
   - ./renovate

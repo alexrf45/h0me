@@ -2,7 +2,6 @@ module "cluster" {
   source = "../"
 
   env                = var.env
-  bootstrap_cluster  = var.bootstrap_cluster
   talos              = var.talos
   pve                = var.pve
   nameservers        = var.nameservers

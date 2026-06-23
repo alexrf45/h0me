@@ -132,15 +132,6 @@ variable "worker_nodes" {
 }
 
 
-#permits adding additonal worker nodes
-#and repeating cluster bootstrap
-
-variable "bootstrap_cluster" {
-  description = "Whether to bootstrap the cluster. Set to false after initial deployment to prevent bootstrap failures on re-apply."
-  type        = bool
-  default     = true
-}
-
 variable "nameservers" {
   description = "DNS servers for the nodes. `internal` is the resolver CoreDNS forwards *.th0th.dev to (split-horizon); falls back to `secondary` when unset."
   type = object({
@@ -158,7 +149,6 @@ variable "cilium_config" {
   type = object({
     namespace                  = optional(string, "networking")
     node_network               = string
-    kube_version               = string
     cilium_version             = string
     hubble_enabled             = optional(bool, false)
     hubble_ui_enabled          = optional(bool, false)
@@ -175,7 +165,6 @@ variable "cilium_config" {
   default = {
     namespace                  = "networking"
     node_network               = "192.168.20.0/24"
-    kube_version               = "1.35.0"
     cilium_version             = "1.19.4"
     hubble_enabled             = false
     hubble_ui_enabled          = false
@@ -202,26 +191,8 @@ variable "config_export" {
 }
 
 
-variable "worker_labels" {
-  description = "Labels to apply to worker nodes after bootstrap"
-  type = object({
-    enabled = optional(bool, true)
-    labels = optional(map(string), {
-      "node-role.kubernetes.io/worker" = "true"
-      "node"                           = "worker"
-    })
-  })
-  default = {
-    enabled = true
-    labels = {
-      "node-role.kubernetes.io/worker" = "true"
-      "node"                           = "worker"
-    }
-  }
-}
-
 variable "flux_config" {
-  description = "Flux GitOps configuration"
+  description = "Flux GitOps configuration (flux-operator bootstrap)"
   type = object({
     enabled           = bool
     git_url           = string
@@ -230,6 +201,11 @@ variable "flux_config" {
     cluster_domain    = string
     sops_secret_name  = string
     sops_age_key_name = string
+    # flux-operator bootstrap (optional; mirrored by the Git HelmReleases)
+    git_secret_name  = optional(string, "flux-git-auth")
+    operator_version = optional(string, "0.52.0") # flux-operator chart version
+    instance_version = optional(string, "0.52.0") # flux-instance chart version
+    flux_version     = optional(string, "2.x")    # FluxInstance distribution.version
   })
   sensitive = true
 }
