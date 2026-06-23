@@ -150,6 +150,13 @@ data "talos_machine_configuration" "worker" {
           - ${var.talos.service_subnet}
     machine:
 ${chomp(local.machine_common)}
+      nodeLabels:
+        # Workload placement label. Every _lib workload selects nodeSelector
+        # node=worker; Talos applies this at registration (before the kubelet
+        # advertises the node as schedulable), so nothing is gated on a label
+        # that doesn't exist yet. Worker-only — must NOT live in machine_common
+        # (shared with control planes). See _docs/decisions/node-labels-worker-selection.md.
+        node: worker
       install:
         disk: ${var.talos.install_disk}
         image: ${data.talos_image_factory_urls.worker.urls.installer}

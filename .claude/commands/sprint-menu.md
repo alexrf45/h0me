@@ -4,7 +4,7 @@ This is the session-kickoff / triage command. It does **not** survey the live cl
 
 ## Steps
 
-1. **Load the tracker.** `ls _docs/reviews/home-0ps-review-*.md` and read the newest. That doc's **Open Items Punch List** + **Suggested Next Sprint** are the source of truth. Do NOT re-survey the cluster — that's `/lab-review`'s job.
+1. **Load the tracker.** `ls _docs/reviews/h0me-review-*.md` and read the newest. That doc's **Open Items Punch List** + **Suggested Next Sprint** are the source of truth. Do NOT re-survey the cluster — that's `/lab-review`'s job.
 
 2. **Staleness check.** Compare the review's date (filename / header) to today, and run `git log --oneline --no-merges --since="<review date>"`. If the review is more than ~5 days old, or there are substantive commits it predates, flag it: "Newest review is `<date>` (`<N>` days old, `<M>` commits since) — want me to run `/lab-review` first?" Proceed with the listing regardless unless the user asks to refresh.
 
@@ -24,5 +24,5 @@ This is the session-kickoff / triage command. It does **not** survey the live cl
 ## Notes
 - This command reads; it doesn't mutate the cluster or repo on its own. Side effects come only from the work the user picks.
 - If a tier has no open items, omit it rather than padding.
-- Keep the menu terse. The review doc (`_docs/reviews/home-0ps-review-<date>.md`) is the canonical detail.
+- Keep the menu terse. The review doc (`_docs/reviews/h0me-review-<date>.md`) is the canonical detail.
 - The picker is for choosing what to start, not for plan approval — once chosen, just begin (use a Plan only if the selected work is non-trivial and needs alignment).
