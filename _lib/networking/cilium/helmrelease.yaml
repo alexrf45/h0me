@@ -85,7 +85,7 @@ spec:
           - SETGID
           - SETUID
     hubble:
-      enabled: false
+      enabled: true
       enableOpenMetrics: false
       metrics:
         enabled:
@@ -97,10 +97,10 @@ spec:
           - icmp
           - http
       relay:
-        enabled: false
+        enabled: true
         rollOutPods: false
       ui:
-        enabled: false
+        enabled: true
     ingressController:
       default: true
       enabled: true
