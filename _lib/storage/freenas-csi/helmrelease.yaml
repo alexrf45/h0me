@@ -23,11 +23,6 @@ spec:
     remediation:
       retries: 3
   targetNamespace: storage
-  valuesFrom:
-    - kind: Secret
-      name: truenas-api-creds
-      valuesKey: TRUENAS_API_KEY
-      targetPath: driver.config.httpConnection.apiKey
   values:
     controller:
       driver:
@@ -49,38 +44,9 @@ spec:
           detachedVolumesFromSnapshots: "false"
 
     driver:
+      existingConfigSecret: democratic-csi-freenas-config
       config:
         driver: freenas-api-iscsi
-        instance_id: null
-        httpConnection:
-          protocol: ${TRUENAS_PROTOCOL}
-          host: ${TRUENAS_HOST}
-          port: ${TRUENAS_PORT}
-          allowInsecure: ${ALLOW_INSECURE}
-          apiVersion: 2
-        zfs:
-          datasetParentName: ${DATASET_PARENT}
-          detachedSnapshotsDatasetParentName: ${DATASET_SNAPSHOTS}
-          zvolCompression: "on"
-          zvolDedup: null
-          zvolEnableReservation: false
-          zvolBlocksize: null
-        iscsi:
-          targetPortal: ${TRUENAS_ISCSI_PORTAL}
-          interface: null
-          namePrefix: csi-
-          nameSuffix: -k8s
-          targetGroups:
-            - targetGroupPortalGroup: 1
-              targetGroupInitiatorGroup: 7
-              targetGroupAuthType: None
-              targetGroupAuthGroup: null
-          extentInsecureTpc: true
-          extentXenCompat: false
-          extentDisablePhysicalBlocksize: true
-          extentBlocksize: 512
-          extentRpm: SSD
-          extentAvailThreshold: 0
     node:
       hostPID: true
       driver:
