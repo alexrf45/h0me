@@ -65,6 +65,12 @@ spec:
               cp -a /etc/php84/. /seed/php84/
               cp -a /var/www/FreshRSS/Docker/. /seed/docker/
               chown -R 100:82 /seed/php84 /seed/docker
+              mkdir -p /var/www/FreshRSS/data/cache \
+                       /var/www/FreshRSS/data/favicons \
+                       /var/www/FreshRSS/data/files \
+                       /var/www/FreshRSS/data/tokens \
+                       /var/www/FreshRSS/data/PubSubHubbub \
+                       /var/www/FreshRSS/data/users/_
               chown -R 100:82 /var/www/FreshRSS/data
               chmod -R g+rX,g+w /var/www/FreshRSS/data
               sed -i -e '/\/etc\/localtime/d' -e '/\/etc\/timezone/d' /seed/docker/entrypoint.sh
