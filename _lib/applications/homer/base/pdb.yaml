@@ -1,0 +1,14 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: homer
+  namespace: homer
+spec:
+  # Single-replica Recreate deployment. maxUnavailable:1 declares disruption
+  # intent while keeping node drains unblocked (minAvailable would pin the only
+  # pod). Selector matches the app pod ONLY.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: homer

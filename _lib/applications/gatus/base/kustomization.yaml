@@ -12,3 +12,4 @@ resources:
   - httproute.yaml
   - limitrange.yaml
   - resourcequota.yaml
+  - pdb.yaml

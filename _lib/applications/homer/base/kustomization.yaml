@@ -10,6 +10,7 @@ resources:
   - httproute.yaml
   - limitrange.yaml
   - resourcequota.yaml
+  - pdb.yaml
 configMapGenerator:
   # GitHub theme (tim0-12432/homer-github-theme v0.1.1) vendored as static CSS.
   # gh-auto wraps the dark+light palettes in prefers-color-scheme to honour
