@@ -3,7 +3,7 @@
 Defined in `_clusters/dev/cluster.yaml`. Each layer depends on the one above it:
 
 1. **cluster-config** — ConfigMap with environment variables (`ENVIRONMENT`, `CLUSTER_NAME`, hostnames, etc.) used by `postBuild.substituteFrom` in downstream Kustomizations
-2. **crds** — Global CRDs from `global/crds/`
+2. **crds** — Global CRDs from `_global/crds/`
 3. **controllers** — All operators: cert-manager, CloudNativePG, external-secrets, Falco, Kyverno, mariadb-operator, redis-operator, Renovate
 4. **pki** — Internal CA keypair, trust-manager, trust bundle
 5. **external-secrets-operator** — ESO deployment (depends on controllers + pki for mTLS)
