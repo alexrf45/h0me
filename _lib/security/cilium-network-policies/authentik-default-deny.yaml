@@ -1,0 +1,20 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: authentik-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: authentik
+spec:
+  description: |
+    Default-deny ingress + egress for every pod in the authentik namespace.
+    Companion CCNPs (authentik-allow, authentik-cnpg-allow) carve out the
+    needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: authentik
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

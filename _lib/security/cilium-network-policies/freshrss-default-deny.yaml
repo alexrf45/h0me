@@ -1,0 +1,20 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: freshrss-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: freshrss
+spec:
+  description: |
+    Default-deny ingress + egress for every pod in the freshrss namespace.
+    Companion CCNPs (freshrss-allow, freshrss-cnpg-allow) carve out the
+    needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: freshrss
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

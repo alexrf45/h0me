@@ -1,0 +1,78 @@
+---
+# Single-instance CNPG cluster on a static iSCSI PV per ADR-0003.
+# Backups land as CSI VolumeSnapshots (→ TrueNAS ZFS snapshots) via the
+# ScheduledBackup below. Independent rip cord: see dump-cronjob.yaml +
+# _docs/guides/cnpg-rescue.md.
+#
+# Why single-instance: pvcTemplate.volumeName binds every instance PVC to
+# the SAME pre-created PV. Scaling past 1 would have the second instance
+# fight over the same PV. See ADR-0003 for the trade-off.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: freshrss-${ENVIRONMENT}-cluster
+  namespace: freshrss
+  labels:
+    app: "freshrss"
+    node: "worker"
+    env: "${ENVIRONMENT}"
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.4-6@sha256:4ebb83ad6701cf90cd16f4c0b502676238ffdb1169bf27c5ae60e9a5bdc7b925
+  instances: 1
+  postgresql:
+    pg_hba:
+      - hostssl freshrss freshrss 10.43.0.0/16 scram-sha-256
+    parameters:
+      "pgaudit.log": "all, -misc"
+      "pgaudit.log_catalog": "off"
+      "pgaudit.log_parameter": "on"
+      "pgaudit.log_relation": "on"
+  monitoring:
+    enablePodMonitor: true
+  bootstrap:
+    initdb:
+      database: freshrss
+      owner: freshrss
+      secret:
+        name: freshrss-db-creds
+  superuserSecret:
+    name: freshrss-db-creds
+  storage:
+    size: 10Gi
+    storageClass: iscsi
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: iscsi
+      volumeName: dev-freshrss-db-pv
+      resources:
+        requests:
+          storage: 10Gi
+  backup:
+    volumeSnapshot:
+      className: freenas-iscsi
+      snapshotOwnerReference: backup
+      online: true
+      onlineConfiguration:
+        immediateCheckpoint: true
+        waitForArchive: false
+---
+# Daily VolumeSnapshot of the cluster's data volume. The Retain
+# deletionPolicy on the freenas-iscsi VolumeSnapshotClass means deleting
+# the VolumeSnapshot object keeps the underlying ZFS snapshot — TrueNAS
+# manages retention.
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: freshrss-${ENVIRONMENT}-cluster-snap
+  namespace: freshrss
+  labels:
+    app: freshrss
+    component: backup
+spec:
+  schedule: "0 0 4 * * *"
+  backupOwnerReference: self
+  immediate: false
+  method: volumeSnapshot
+  cluster:
+    name: freshrss-${ENVIRONMENT}-cluster

@@ -1,0 +1,47 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: flux-system
+data:
+  ENVIRONMENT: "dev"
+  OWNER: "fr3d"
+  CLUSTER_NAME: "memphis"
+  TRUENAS_HOST: "192.168.20.106"
+  TRUENAS_PROTOCOL: "https"
+  TRUENAS_PORT: "443"
+  TRUENAS_USERNAME: "truenas_admin"
+  TRUENAS_ISCSI_PORTAL: "192.168.20.106:3260"
+  # Must NOT overlap: democratic-csi rejects a snapshots parent nested under
+  # the volumes parent (gRPC code 9). Kept as siblings under dev.
+  DATASET_PARENT: "home-share/k8s/dev/volumes"
+  DATASET_SNAPSHOTS: "home-share/k8s/dev/snapshots"
+  STORAGE_CLASS_NAME: "iscsi"
+  # Retain so PVs survive a PVC delete — TrueNAS owns the data lifecycle.
+  # Static PVs in the lab (dev-*-db-pv, dev-freshrss-pv) are already
+  # Retain by manifest; this flip is for the dynamically-provisioned ones
+  # (e.g. dev-*-dumps-pvc). reclaimPolicy is immutable on a live SC, so
+  # the SC has to be deleted + recreated for the change to land — done
+  # by hand once after this flip.
+  RECLAIM_POLICY: "Retain"
+  ALLOW_INSECURE: "true"
+  GATEWAY_NAME: "dev-app-gateway"
+  # LAN resolver CoreDNS forwards *.th0th.dev to (split-horizon). Must match
+  # terraform var.nameservers.secondary (the UniFi gateway). Consumed by
+  # _lib/coredns/configmap.yaml.
+  INTERNAL_DNS_RESOLVER: "10.3.3.1"
+  #applications
+  FRESHRSS_VERSION: "1.27.0-alpine"
+  FRESHRSS_SUBDOMAIN: "dev.int.freshrss"
+  FRESHRSS_PVC_NAME: "dev-freshrss-pvc"
+  HOMER_VERSION: "v26.4.2"
+  HOMER_SUBDOMAIN: "dev.int.homer"
+  AUTHENTIK_SUBDOMAIN: "dev.int.auth"
+  GATUS_VERSION: "v5.36.0"
+  GATUS_SUBDOMAIN: "dev.int.status"
+  #observability
+  GRAFANA_SUBDOMAIN: "dev.int.grafana"
+  KROMGO_VERSION: "v0.10.0"
+  KROMGO_SUBDOMAIN: "dev.int.kromgo"
+---

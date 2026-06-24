@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: freshrss
+  namespace: freshrss
+spec:
+  # Guardrail for the namespace (app + 3-instance CNPG cluster). Sized well
+  # above steady-state (~250m / 640Mi requested) with headroom for CNPG
+  # rolling restarts, replica rebuild (pg_basebackup) jobs, and a transient
+  # extra instance. The LimitRange supplies defaults so every pod qualifies.
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "6"
+    limits.memory: 4Gi

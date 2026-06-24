@@ -1,0 +1,98 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homer
+  namespace: homer
+  labels:
+    app.kubernetes.io/name: homer
+    app.kubernetes.io/instance: homer-${ENVIRONMENT}
+    app.kubernetes.io/version: "${HOMER_VERSION}"
+    environment: "${ENVIRONMENT}"
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: homer
+  template:
+    metadata:
+      labels:
+        app: homer
+        node: worker
+        env: "${ENVIRONMENT}"
+        app.kubernetes.io/name: homer
+        app.kubernetes.io/instance: homer-${ENVIRONMENT}
+        app.kubernetes.io/version: "${HOMER_VERSION}"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: homer
+          image: b4bz/homer:${HOMER_VERSION}
+          imagePullPolicy: Always
+          securityContext:
+            # runAsUser set explicitly: the Kyverno add-default-securitycontext
+            # policy mutates an unset runAsUser to 65534, which the image's
+            # baked-in uid 1000 ownership wouldn't match.
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem deliberately false for PR1: the entrypoint
+            # seeds theme assets into /www/assets on boot. Harden to RO-rootfs as
+            # a follow-up once the writable paths are enumerated on a live pod.
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          volumeMounts:
+            - name: config
+              mountPath: /www/assets/config.yml
+              subPath: config.yml
+              readOnly: true
+            - name: theme
+              mountPath: /www/assets/themes
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: homer-config
+            items:
+              - key: config.yml
+                path: config.yml
+        - name: theme
+          configMap:
+            name: homer-theme

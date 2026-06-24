@@ -1,0 +1,24 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-tls
+  namespace: networking
+spec:
+  secretName: wildcard-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  commonName: "*.th0th.dev"
+  dnsNames:
+  - "*.th0th.dev"
+  - "th0th.dev"
+  # Multi-label internal hostnames (three labels deep, e.g. dev.int.X) are
+  # NOT covered by the single-label *.th0th.dev wildcard, so each is added
+  # as an explicit SAN. They all share this one cert because Cilium Gateway's
+  # per-SNI selection across multiple certificateRefs is unreliable (it serves
+  # the first ref for all SNIs) — one SAN cert sidesteps that.
+  - "dev.int.auth.th0th.dev"
+  - "dev.int.grafana.th0th.dev"
+  - "dev.int.homer.th0th.dev"
+  - "dev.int.freshrss.th0th.dev"

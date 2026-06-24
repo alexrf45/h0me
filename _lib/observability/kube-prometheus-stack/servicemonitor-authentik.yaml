@@ -1,0 +1,31 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: authentik
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: authentik
+spec:
+  # The Authentik chart provisions two metrics Services in the authentik ns —
+  # authentik-server-metrics and authentik-worker-metrics — each carrying the
+  # chart-standard component label (server-metrics / worker-metrics) on
+  # `app.kubernetes.io/component`. We match both with one matchExpression so a
+  # single SM covers both deployments. /metrics is exposed on port `metrics`
+  # (chart default servicePort: 9300, portName: metrics) by both Services.
+  namespaceSelector:
+    matchNames:
+      - authentik
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - server-metrics
+          - worker-metrics
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s

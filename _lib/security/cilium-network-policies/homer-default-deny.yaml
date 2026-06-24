@@ -1,0 +1,19 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: homer-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: homer
+spec:
+  description: |
+    Default-deny ingress + egress for every pod in the homer namespace.
+    The companion CCNP (homer-allow) carves out the needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: homer
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

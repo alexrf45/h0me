@@ -1,0 +1,62 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: authentik-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: authentik
+spec:
+  description: |
+    Allow rules for the authentik server + worker pods (chart labels:
+    app.kubernetes.io/name=authentik). Server receives gateway ingress on
+    9000; worker has no listener but inherits the egress carve-outs.
+    Outbound covers DNS, the CNPG primary, and world:443/587 for OIDC
+    federation, SMTP relays, and remote image fetches.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: authentik
+      k8s:app.kubernetes.io/name: authentik
+  ingress:
+    # Cilium Gateway API: backend connections arrive from the
+    # reserved:ingress identity (the cilium-envoy proxy). host /
+    # remote-node covers kubelet liveness/readiness probes on 9000.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+  egress:
+    # DNS lookup against kube-dns
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # CNPG instance pods, same namespace
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            cnpg.io/cluster: authentik-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # Outbound HTTPS — OIDC federation, SMTP-over-TLS, remote image fetches.
+    # Tighten via toFQDNs once L7 DNS visibility is enabled.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "587"
+              protocol: TCP

@@ -1,0 +1,51 @@
+# _lib/secrets/external-secrets/helmrelease.yaml
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: external-secrets
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: HelmRepository
+        name: external-secrets
+        namespace: flux-system
+      version: 0.20.1
+  interval: 30m
+  releaseName: external-secrets
+  targetNamespace: external-secrets
+  values:
+    global:
+      nodeSelector:
+        node: "worker"
+    log:
+      level: debug
+      timeEncoding: epoch
+    installCRDs: true
+    crds:
+      createClusterExternalSecret: true
+      createClusterSecretStore: true
+      createPushSecret: true
+    serviceMonitor:
+      enabled: false
+      namespace: "monitoring"
+    grafanaDashboard:
+      enabled: false
+    replicaCount: 1
+    revisionHistoryLimit: 15
+    extraEnv:
+      - name: SSL_CERT_DIR
+        value: /etc/ssl/certs
+    extraVolumeMounts:
+      - name: internal-ca
+        mountPath: /etc/ssl/certs/ca-certificates.crt   # Override the bundle itself
+        subPath: ca-certificates.crt
+        readOnly: true
+    extraVolumes:
+      - name: internal-ca
+        configMap:
+          name: homelab-internal-ca-bundle

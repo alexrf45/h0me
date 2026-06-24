@@ -1,0 +1,30 @@
+---
+# Static scrape target for the TrueNAS Scale host's node_exporter.
+# 192.168.20.106 is on the home-lab server VLAN and exposes :9100.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: truenas
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: truenas
+    app.kubernetes.io/component: external-metrics
+    app.kubernetes.io/part-of: observability
+spec:
+  staticConfigs:
+    - targets:
+        - "192.168.20.106:9100"
+      labels:
+        host: truenas
+        instance: truenas
+  metricsPath: /metrics
+  scheme: HTTP
+  scrapeInterval: 30s
+  scrapeTimeout: 10s
+  # Overwrite the auto-derived job label (defaults to
+  # `scrapeConfig/monitoring/truenas`) so TrueNAS appears alongside the
+  # cluster nodes in the kube-prometheus-stack "Node Exporter / Nodes"
+  # dashboard, which filters by job="node-exporter".
+  relabelings:
+    - targetLabel: job
+      replacement: node-exporter

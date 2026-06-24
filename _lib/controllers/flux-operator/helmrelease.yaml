@@ -1,0 +1,29 @@
+---
+# Adopts the flux-operator Helm release first installed by Terraform
+# (_infra/memphis). Renovate bumps the OCIRepository tag; Flux then upgrades the
+# operator in place — Flux/operator now upgrade like any other HelmRelease.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator
+  namespace: flux-system
+spec:
+  interval: 12h
+  releaseName: flux-operator
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: -1
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    remediation:
+      retries: -1
+  values:
+    # Operator chart owns its CRDs (FluxInstance/FluxReport/ResourceSet*). The
+    # FluxInstance CR is rendered by the flux-instance HelmRelease, which
+    # dependsOn this release — no kustomize dry-run race (.claude/rules/crds.md).
+    installCRDs: true

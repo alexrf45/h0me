@@ -1,0 +1,48 @@
+---
+# Userspace proxy variant for Service-typed Tailscale LoadBalancers and
+# ProxyGroups. By default the Tailscale operator builds Service-exposing
+# proxy pods in kernel mode: a privileged `tailscale` container plus a
+# privileged `sysctler` init container that flips net.ipv4.ip_forward and
+# net.ipv6.conf.all.forwarding.
+#
+# This ProxyClass forces the proxy into userspace netstack mode
+# (TS_USERSPACE=true) and drops privileged on the *main* tailscale
+# container, pinning it to UID 1000. The hardcoded `sysctler` init
+# container is left at its operator default (privileged) — narrow access
+# is gated by the `restrict-privileged-tailscale` Kyverno ClusterPolicy.
+#
+# Reference from a Service / ProxyGroup egress Service with:
+#
+#     metadata:
+#       annotations:
+#         tailscale.com/proxy-class: userspace
+#
+# Caveat 1: userspace mode is TCP-only (Tailscale's gVisor netstack does
+# not handle UDP). Don't use for any Service that needs UDP forwarding.
+#
+# Caveat 2: incompatible with ProxyGroup-managed proxies (both `ingress`
+# and `egress` types). ProxyGroup pods install iptables NAT rules in the
+# pod netns to forward Service traffic — that requires privileged + root.
+# Use the operator default for ProxyGroups; only apply this ProxyClass
+# to chart-emitted Ingress proxies (e.g. wallabag's tailscale Ingress).
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: userspace
+spec:
+  statefulSet:
+    pod:
+      tailscaleContainer:
+        env:
+          - name: TS_USERSPACE
+            value: "true"
+        securityContext:
+          privileged: false
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          capabilities:
+            drop:
+              - ALL

@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale
+  labels:
+    app: "tailscale"
+    env: ${ENVIRONMENT}
+    owner: ${OWNER}
+    # Permits the Tailscale operator's hardcoded privileged `sysctler` init
+    # container on Service-typed proxies (ts-* StatefulSets) to flip
+    # net.ipv4.ip_forward. The privileged surface is narrowed by the
+    # `restrict-privileged-tailscale` Kyverno ClusterPolicy, which only
+    # allows containers literally named `sysctler` to set privileged: true.
+    pod-security.kubernetes.io/enforce: "privileged"
+---

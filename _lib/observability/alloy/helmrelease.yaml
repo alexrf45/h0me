@@ -1,0 +1,92 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: alloy
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: alloy
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+      version: "1.4.0"
+  interval: 30m
+  install:
+    crds: Skip
+    remediation:
+      retries: -1
+  upgrade:
+    crds: Skip
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: -1
+  targetNamespace: monitoring
+  values:
+    fullnameOverride: alloy
+
+    alloy:
+      # External ConfigMap (alloy-config) defined alongside this release
+      configMap:
+        create: false
+        name: alloy-config
+        key: config.alloy
+
+      # Tailing /var/log/pods — needed for log discovery on Talos / containerd
+      mounts:
+        varlog: true
+        dockercontainers: false
+
+      # Use the chart's default storagePath (/tmp/alloy) — the chart auto-mounts
+      # an emptyDir at that path. Overriding it without also wiring a writable
+      # volume there breaks any feature that writes data (e.g. remotecfg) when
+      # readOnlyRootFilesystem is true.
+
+      # Cluster-wide pod discovery requires the chart's RBAC defaults
+      clustering:
+        enabled: false
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        # Run as root. Pod log files in /var/log/pods/*/*/*.log are
+        # mode 0640 root:root on Talos / containerd; a non-root user
+        # cannot read them. Adding CAP_DAC_READ_SEARCH via capabilities
+        # only places it in the bounding set — Linux requires the
+        # process to start as root for added caps to land in the
+        # effective set. So run as root, drop all caps for everything
+        # else (so SUID-style escapes are blocked), and rely on the
+        # PSA privileged label on the monitoring namespace to permit
+        # root containers there. This matches what Promtail / Fluent
+        # Bit / Vector do for the same reason.
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+
+    controller:
+      type: daemonset
+      # Schedule on every node, including any tainted control planes
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Exists
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+
+    serviceMonitor:
+      enabled: true

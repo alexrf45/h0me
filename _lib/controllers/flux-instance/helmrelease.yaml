@@ -1,0 +1,55 @@
+---
+# Adopts the `flux` Helm release first installed by Terraform (_infra/memphis).
+# The FluxInstance it renders controls the Flux toolkit version + Git sync, so
+# Flux upgrades via this HelmRelease — like Cilium does.
+#
+# IMPORTANT: the sync values below MUST match flux_config.{git_url, branch,
+# cluster_path} in the _infra/memphis tfvars. Terraform bootstrap creates the
+# identical FluxInstance; a mismatch makes this upgrade break the sync.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-instance
+  namespace: flux-system
+spec:
+  interval: 12h
+  releaseName: flux
+  dependsOn:
+    - name: flux-operator
+  chartRef:
+    kind: OCIRepository
+    name: flux-instance
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: -1
+  values:
+    instance:
+      distribution:
+        # "2.x" = operator auto-tracks latest stable Flux 2.x (auto patch/minor).
+        # The operator CHART is Renovate-bumped via the OCIRepository tag.
+        # Pin to e.g. "2.7.x" for manual control.
+        version: "2.x"
+        registry: ghcr.io/fluxcd
+      components:
+        - source-controller
+        - kustomize-controller
+        - helm-controller
+        - notification-controller
+      cluster:
+        type: kubernetes
+        multitenant: false
+        networkPolicy: true
+        domain: cluster.local
+      sync:
+        # name "flux-system" so the generated GitRepository/Kustomization match
+        # the sourceRef.name in _clusters/dev/cluster.yaml (classic-bootstrap drop-in).
+        name: flux-system
+        kind: GitRepository
+        url: https://github.com/alexrf45/h0me.git
+        ref: refs/heads/dev
+        path: ./_clusters/dev
+        pullSecret: flux-git-auth

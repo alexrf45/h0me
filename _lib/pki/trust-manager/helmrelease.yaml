@@ -1,0 +1,42 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trust-manager
+  namespace: flux-system
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: trust-manager
+      sourceRef:
+        kind: HelmRepository
+        name: trust-manager
+      version: "0.16.0"
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: -1
+  targetNamespace: cert-manager
+  values:
+    # CRDs are installed via global/crds/trust-manager/ — see CLAUDE.md "CRDs" rule.
+    crds:
+      enabled: false
+      keep: false
+    nodeSelector:
+      node: "worker"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 100Mi
+    image:
+      pullPolicy: Always
+    defaultPackageImage:
+      pullPolicy: Always

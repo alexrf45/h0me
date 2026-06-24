@@ -1,0 +1,120 @@
+---
+# Daily logical pg_dump rip cord for freshrss CNPG cluster (S-6).
+# Independent of CSI volumeSnapshots — if the snapshot stack eats itself
+# or the cluster's data dir is corrupted, this dump restores the database
+# via the runbook at _docs/guides/cnpg-rescue.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dev-freshrss-dumps-pvc
+  namespace: freshrss
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: iscsi
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: freshrss-cnpg-dump
+  namespace: freshrss
+  labels:
+    app: cnpg-dump
+    component: backup
+    target: freshrss-${ENVIRONMENT}-cluster
+spec:
+  schedule: "0 3 * * *"
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: cnpg-dump
+            target: freshrss-${ENVIRONMENT}-cluster
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            node: worker
+          securityContext:
+            runAsUser: 26
+            runAsGroup: 26
+            fsGroup: 26
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              image: ghcr.io/cloudnative-pg/postgresql:17.4-6@sha256:4ebb83ad6701cf90cd16f4c0b502676238ffdb1169bf27c5ae60e9a5bdc7b925
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                runAsUser: 26
+                runAsGroup: 26
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                - name: PGHOST
+                  value: freshrss-${ENVIRONMENT}-cluster-rw
+                - name: PGPORT
+                  value: "5432"
+                - name: PGDATABASE
+                  value: freshrss
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: freshrss-db-creds
+                      key: username
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: freshrss-db-creds
+                      key: password
+              command:
+                - bash
+                - -c
+                - |
+                  set -euo pipefail
+                  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+                  out="/backup/freshrss-$stamp.dump"
+                  echo "[cnpg-dump] $PGHOST/$PGDATABASE -> $out"
+                  pg_dump --format=custom --no-owner --no-acl --file="$out"
+                  bytes="$(stat -c %s "$out")"
+                  if [ "$bytes" -lt 1024 ]; then
+                    echo "[cnpg-dump] dump suspiciously small ($bytes bytes)" >&2
+                    exit 1
+                  fi
+                  echo "[cnpg-dump] wrote $bytes bytes"
+                  # Retention: keep last 14 dumps
+                  ls -1t /backup/freshrss-*.dump | tail -n +15 | xargs -r rm -fv
+                  echo "[cnpg-dump] retention sweep complete"
+                  echo "[cnpg-dump] current dumps:"
+                  ls -lh /backup/freshrss-*.dump
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: dev-freshrss-dumps-pvc
+            - name: tmp
+              emptyDir: {}

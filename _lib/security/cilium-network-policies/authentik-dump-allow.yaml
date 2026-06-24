@@ -1,0 +1,38 @@
+---
+# Egress allow for the authentik S-6 dump CronJob pod. Default-deny
+# (authentik-default-deny) covers the namespace; we punch holes
+# explicitly. Companion ingress rule lives on authentik-cnpg-allow.
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: authentik-dump-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: authentik
+    component: backup
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: authentik
+      app: cnpg-dump
+  egress:
+    # DNS
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # pg_dump → CNPG primary on 5432 (matches the -rw service backend pods)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: authentik
+            cnpg.io/cluster: authentik-${ENVIRONMENT}-cluster
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP

@@ -1,0 +1,108 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: flux-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: authentik
+      version: "2026.2.3"
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: flux-system
+      interval: 30m
+  install:
+    # Skip pod-ready wait — the chart needs the authentik-env Secret
+    # before pods can start, and that Secret is produced by the
+    # ExternalSecret in the applications layer (which depends on
+    # controllers being Ready). Waiting here deadlocks the whole
+    # controllers Kustomization.
+    disableWait: true
+    remediation:
+      retries: -1
+  upgrade:
+    disableWait: true
+    cleanupOnFail: true
+    remediation:
+      strategy: rollback
+      retries: -1
+  targetNamespace: authentik
+  values:
+    fullnameOverride: authentik
+    global:
+      nodeSelector:
+        node: "worker"
+      # Surface the Grafana OIDC client creds to server+worker as env vars so
+      # the Grafana blueprint can read them via !Env. Secret produced by the
+      # authentik-grafana-oidc ExternalSecret (applications layer); like
+      # authentik-env it lands one layer later, so pods CreateContainerConfigError
+      # until it syncs, then self-heal (disableWait keeps this non-blocking).
+      envFrom:
+        - secretRef:
+            name: authentik-grafana-oidc
+    # Auto-discovered + applied by the worker from /blueprints. Provisions the
+    # Grafana OIDC provider/application/entitlements with no UI clicks.
+    blueprints:
+      configMaps:
+        - authentik-grafana-blueprint
+    authentik:
+      enabled: true
+      log_level: info
+      existingSecret:
+        secretName: authentik-env
+      error_reporting:
+        enabled: false
+    server:
+      replicas: 1
+      autoscaling:
+        enabled: false
+      ingress:
+        enabled: false
+      # (O-9) Stand up the chart's metrics Service so Prometheus can scrape
+      # authentik. The chart-side ServiceMonitor stays disabled — ownership of
+      # ServiceMonitors is centralised in _lib/observability/kube-prometheus-stack/
+      # (same pattern as falco) so cardinality/relabel changes are made in one
+      # place. The obs-side SM cross-namespace selects this Service.
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+      # Sized above observed steady-state (~543Mi / 16m). Request reserves real
+      # usage so the pod isn't a node-pressure eviction target; limit gives
+      # headroom for blueprint/migration spikes. (P-2 / H-4)
+      resources:
+        requests:
+          cpu: 100m
+          memory: 640Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+    worker:
+      replicas: 1
+      autoscaling:
+        enabled: false
+      # (O-9) See server.metrics comment above — same rationale.
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: false
+      # Sized above observed steady-state (~463Mi / 47m). The worker spikes
+      # during blueprint application and DB migrations. (P-2 / H-4)
+      resources:
+        requests:
+          cpu: 100m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+    geoip:
+      enabled: false
+    postgresql:
+      enabled: false
+    prometheus:
+      rules:
+        enabled: false

@@ -1,0 +1,43 @@
+---
+# Static PV for the freshrss CNPG cluster data volume.
+#
+# Manually pre-created zvol + iSCSI target/extent on TrueNAS:
+#   zvol:    dev-freshrss-db (10Gi, parent: home-share/iscsi/k8s/dev/volumes)
+#   IQN:     iqn.2005-10.org.freenas.ctl:dev-freshrss-db, LUN 0
+#
+# claimRef pins this PV to the PVC the operator will create
+# (`freshrss-${ENVIRONMENT}-cluster-1`) so nothing else can grab it.
+# Reclaim: Retain — deleting the PVC won't drop the zvol.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dev-freshrss-db-pv
+  labels:
+    env: dev
+    app: freshrss
+    component: database
+    persistent: "true"
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: freshrss
+    name: freshrss-${ENVIRONMENT}-cluster-1
+  csi:
+    driver: freenas-api-iscsi
+    fsType: ext4
+    volumeHandle: dev-freshrss-db
+    volumeAttributes:
+      lun: "0"
+      interface: ""
+      node_attach_driver: iscsi
+      provisioner_driver: freenas-api-iscsi
+      portal: "192.168.20.106:3260"
+      portals: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:dev-freshrss-db"

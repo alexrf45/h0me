@@ -1,0 +1,22 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kromgo-default-deny
+  labels:
+    th0th.dev/policy-target: application
+    app: kromgo
+spec:
+  description: |
+    Default-deny ingress + egress for kromgo pods. Scoped to the kromgo app
+    label (not the whole monitoring namespace) so prometheus/grafana/alloy
+    keep their open posture inside monitoring.
+    The companion CCNP (kromgo-allow) carves out the needed exceptions.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: monitoring
+      app: kromgo
+  ingress:
+    - fromEndpoints: []
+  egress:
+    - toEndpoints: []

@@ -1,0 +1,21 @@
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: authentik-defaults
+  namespace: authentik
+spec:
+  limits:
+    # Defaults injected into any container that omits resources — notably the
+    # CNPG postgres pods (the Cluster spec sets none) and their bootstrap/join
+    # init containers — so the ResourceQuota can require requests + limits on
+    # every pod without rejecting them. The authentik server/worker set their
+    # own (larger) resources in the HelmRelease, so these defaults don't apply
+    # to them.
+    - type: Container
+      defaultRequest:
+        cpu: 50m
+        memory: 128Mi
+      default:
+        cpu: 500m
+        memory: 512Mi

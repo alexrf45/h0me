@@ -1,0 +1,23 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: homer
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - limitrange.yaml
+  - resourcequota.yaml
+configMapGenerator:
+  # GitHub theme (tim0-12432/homer-github-theme v0.1.1) vendored as static CSS.
+  # gh-auto wraps the dark+light palettes in prefers-color-scheme to honour
+  # the config's colorTheme: auto. Mounted whole at /www/assets/themes so edits
+  # propagate to the running pod without a rollout (non-subPath volume).
+  - name: homer-theme
+    files:
+      - assets/gh-base.min.css
+      - assets/gh-auto.min.css
+generatorOptions:
+  disableNameSuffixHash: true

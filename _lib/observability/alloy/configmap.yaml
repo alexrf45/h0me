@@ -1,0 +1,126 @@
+---
+# Alloy River config — mounted into the Alloy DaemonSet via
+# alloy.configMap.{create:false, name:alloy-config, key:config.alloy} in
+# the HelmRelease. Pipeline:
+#
+#   discovery.kubernetes (pods)
+#     -> discovery.relabel (drop control plane, set __path__)
+#     -> local.file_match (tail /var/log/pods)
+#     -> loki.source.file
+#     -> loki.process (CRI parse)
+#     -> loki.write (loki-egress.tailscale.svc.cluster.local:3100)
+#
+# No auth: Loki has none; the tailnet ACL on the loki-egress ProxyGroup
+# is the boundary.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/component: log-shipper
+    app.kubernetes.io/part-of: observability
+data:
+  config.alloy: |
+    logging {
+      level  = "info"
+      format = "logfmt"
+    }
+
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.relabel "pod_logs" {
+      targets = discovery.kubernetes.pods.targets
+
+      // Drop pods we don't care about
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        regex         = "kube-system"
+        action        = "drop"
+      }
+
+      // Standard pod metadata -> labels
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_node_name"]
+        target_label  = "node"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        target_label  = "app"
+      }
+
+      // Build the log path: /var/log/pods/<ns>_<pod>_<uid>/<container>/*.log
+      // Default regex "(.*)" yields a single capture group $1 holding the
+      // joined source labels — so we join uid/container with `/` and use a
+      // leading * glob to match the <ns>_<pod>_ prefix on the pod dir.
+      rule {
+        source_labels = [
+          "__meta_kubernetes_pod_uid",
+          "__meta_kubernetes_pod_container_name",
+        ]
+        separator    = "/"
+        action       = "replace"
+        target_label = "__path__"
+        replacement  = "/var/log/pods/*$1/*.log"
+      }
+    }
+
+    local.file_match "pods" {
+      path_targets = discovery.relabel.pod_logs.output
+    }
+
+    loki.source.file "pods" {
+      targets    = local.file_match.pods.targets
+      forward_to = [loki.process.k8s.receiver]
+    }
+
+    loki.process "k8s" {
+      // Parse containerd CRI log lines (timestamp, stream, flags, body)
+      stage.cri { }
+
+      stage.labels {
+        values = {
+          stream = "",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        url = "http://loki-egress.tailscale.svc.cluster.local:3100/loki/api/v1/push"
+      }
+    }
+
+    // Kubernetes events -> Loki (O-4). Ships all namespaces' events; the
+    // alloy ClusterRole must grant events {get,list,watch} (chart default).
+    loki.source.kubernetes_events "k8s_events" {
+      log_format = "logfmt"
+      forward_to = [loki.process.events.receiver]
+    }
+
+    loki.process "events" {
+      stage.static_labels {
+        values = {
+          job = "k8s-events",
+        }
+      }
+
+      forward_to = [loki.write.default.receiver]
+    }

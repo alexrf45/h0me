@@ -1,0 +1,63 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tailscale-operator
+  namespace: flux-system
+spec:
+  interval: 12h
+  maxHistory: 3
+  chart:
+    spec:
+      chart: tailscale-operator
+      version: 1.98.3
+      interval: 30m
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale-operator
+  targetNamespace: tailscale
+  values:
+    oauth: {}
+     # clientId: ""
+     # clientSecret: ""
+
+    # CRDs are reconciled in the `crds` Flux Kustomization (global/crds/tailscale/),
+    # pinned to this chart version. See .claude/rules/crds.md.
+    installCRDs: false
+
+    operatorConfig:
+      defaultTags:
+        - "tag:k8s"
+        - "tag:k8s-operator"
+      image:
+       # Repository defaults to DockerHub, but images are also synced to ghcr.io/tailscale/k8s-operator.
+        repository: tailscale/k8s-operator
+        tag: ""
+        digest: ""
+        pullPolicy: Always
+      logging: "debug" # info, debug, dev
+      hostname: "tailscale-operator"
+
+
+      affinity: {}
+
+      podSecurityContext: {}
+
+      securityContext: {}
+
+    # https://tailscale.com/kb/1236/kubernetes-operator#cluster-resource-customization-using-proxyclass-custom-resource
+    proxyConfig:
+      image:
+        # Repository defaults to DockerHub, but images are also synced to ghcr.io/tailscale/tailscale.
+        repository: tailscale/tailscale
+        tag: ""
+        digest: ""
+        pullPolicy: Always
+      defaultTags: "tag:k8s-operator,tag:k8s"
+      firewallMode: auto
+
+    # Kubernetes API server.
+    # https://tailscale.com/kb/1236/kubernetes-operator/#accessing-the-kubernetes-control-plane-using-an-api-server-proxy
+    apiServerProxyConfig:
+      mode: "true" # "true", "false", "noauth"
+      allowImpersonation: "true"

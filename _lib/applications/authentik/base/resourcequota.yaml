@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  # Guardrail for the namespace: server + worker (explicit resources in the
+  # HelmRelease) + a 3-instance CNPG cluster (LimitRange-defaulted). Sized
+  # above steady-state requests (~350m / ~1.5Gi) with headroom for a HelmRelease
+  # rolling update (transient +1 server/+1 worker) and a CNPG rolling restart /
+  # replica rebuild (transient +1 instance + pg_basebackup join). Limits
+  # oversubscribe by design — only requests reserve node capacity.
+  hard:
+    requests.cpu: "2"
+    requests.memory: 3Gi
+    limits.cpu: "8"
+    limits.memory: 7Gi

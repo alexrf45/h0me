@@ -1,0 +1,126 @@
+---
+# Adopts the Cilium release bootstrapped inline by Talos (the inline manifest is
+# stamped with Helm ownership metadata in the talos-pve module so this release
+# takes it over instead of erroring). Reconciled FIRST in the networking layer —
+# everything else depends on the CNI. Renovate's flux manager bumps the chart
+# version against the HelmRepository.
+#
+# IMPORTANT: these values are the full Cilium config. They must stay consistent
+# with the cluster's intent; the Talos inline bootstrap intentionally carries
+# only the CNI-minimum subset (ipam/kubeProxyReplacement/k8sServiceHost/cgroup/
+# securityContext). On first reconcile Flux upgrades the adopted release to this
+# full config (encryption, hubble, gateway/ingress, L2, etc.).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cilium
+  namespace: flux-system
+spec:
+  interval: 12h
+  releaseName: cilium
+  targetNamespace: networking
+  storageNamespace: networking
+  chart:
+    spec:
+      chart: cilium
+      # Must match the inline-bootstrap version (var.cilium_config.cilium_version
+      # in tfvars) so Flux adopts the release without an up/downgrade.
+      version: "1.20.0-pre.3"
+      sourceRef:
+        kind: HelmRepository
+        name: cilium
+        namespace: flux-system
+      interval: 24h
+  install:
+    remediation:
+      retries: -1
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: -1
+  values:
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "768Mi"
+      requests:
+        cpu: "100m"
+        memory: "384Mi"
+    ipam:
+      mode: kubernetes
+    kubeProxyReplacement: true
+    enableIPv6Masquerade: false
+    dnsPolicy: ClusterFirst
+    # KubePrism endpoint (Talos) — required for kube-proxy-less operation.
+    k8sServiceHost: localhost
+    k8sServicePort: "7445"
+    encryption:
+      enabled: true
+      nodeEncryption: true
+      type: wireguard
+      wireguard:
+        persistentKeepalive: "0s"
+    l2announcements:
+      enabled: true
+    cgroup:
+      autoMount:
+        enabled: false
+      hostRoot: /sys/fs/cgroup
+    securityContext:
+      capabilities:
+        cleanCiliumState:
+          - NET_ADMIN
+          - SYS_ADMIN
+          - SYS_RESOURCE
+        ciliumAgent:
+          - CHOWN
+          - KILL
+          - NET_ADMIN
+          - NET_RAW
+          - IPC_LOCK
+          - SYS_ADMIN
+          - SYS_RESOURCE
+          - DAC_OVERRIDE
+          - FOWNER
+          - SETGID
+          - SETUID
+    hubble:
+      enabled: true
+      enableOpenMetrics: false
+      metrics:
+        enabled:
+          - "dns:query"
+          - drop
+          - tcp
+          - flow
+          - port-distribution
+          - icmp
+          - http
+      relay:
+        enabled: true
+        rollOutPods: false
+      ui:
+        enabled: true
+    ingressController:
+      default: true
+      enabled: true
+      loadbalancerMode: shared
+      service:
+        externalTrafficPolicy: Cluster
+        loadBalancerIP: "192.168.20.226"
+        name: cilium-ingress
+        type: LoadBalancer
+    gatewayAPI:
+      enabled: true
+      gatewayClass:
+        create: "auto"
+    redact:
+      enabled: true
+      http:
+        urlQuery: true
+        userInfo: true
+    externalIPs:
+      enabled: true
+    k8sClientRateLimit:
+      qps: 30
+      burst: 50

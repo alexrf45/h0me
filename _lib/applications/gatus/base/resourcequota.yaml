@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gatus
+  namespace: gatus
+spec:
+  # Guardrail for the namespace (app + single-instance CNPG cluster + the
+  # daily S-6 dump CronJob). Sized above steady-state with headroom for CNPG
+  # rolling restarts and transient backup pods. The LimitRange supplies
+  # defaults so every pod qualifies.
+  hard:
+    requests.cpu: "1"
+    requests.memory: 1Gi
+    limits.cpu: "3"
+    limits.memory: 2Gi

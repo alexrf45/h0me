@@ -1,0 +1,33 @@
+---
+# ExternalName Service that the Tailscale operator picks up via the
+# tailscale.com/tailnet-fqdn annotation. The operator wires this Service
+# through the ts-egress ProxyGroup so in-cluster pods reach
+# loki.bun-dominant.ts.net:3100 over the tailnet (encrypted, ACL-gated)
+# by addressing the stable cluster DNS name:
+#
+#   http://loki-egress.tailscale.svc.cluster.local:3100
+#
+# Lives in the `tailscale` namespace because the operator only watches
+# Services in namespaces it manages — keeps the egress proxy lifecycle
+# co-located with the operator.
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki-egress
+  namespace: tailscale
+  labels:
+    app.kubernetes.io/name: loki-egress
+    app.kubernetes.io/component: tailnet-egress
+    app.kubernetes.io/part-of: observability
+  annotations:
+    tailscale.com/tailnet-fqdn: loki.bun-dominant.ts.net
+    tailscale.com/proxy-group: ts-egress
+    tailscale.com/proxy-class: userspace
+spec:
+  type: ExternalName
+  externalName: placeholder.tailscale.svc.cluster.local
+  ports:
+    - name: http
+      port: 3100
+      targetPort: 3100
+      protocol: TCP

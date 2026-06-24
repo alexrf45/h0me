@@ -1,0 +1,104 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kyverno
+  namespace: flux-system
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: kyverno
+      version: 3.7.0
+      sourceRef:
+        name: kyverno
+        kind: HelmRepository
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+  uninstall:
+    keepHistory: false
+  targetNamespace: kyverno
+  values:
+    config:
+      excludeKyvernoNamespace: true
+      resourceFiltersExcludeNamespaces:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - flux-system
+        - security
+        - storage
+        - networking
+        - database
+        - cert-manager
+        - external-secrets
+        - monitoring
+        - onepassword
+        - renovate
+        - mariadb
+        - redis
+    admissionController:
+      # HA: 2 replicas so a single admission-controller pod failure (or its node
+      # draining) doesn't stall pod admission in the non-excluded (application)
+      # namespaces. Chart default is 1 (a SPOF on the mutating webhook path).
+      # The chart's soft podAntiAffinity spreads them across nodes. (P-3)
+      replicas: 2
+      container:
+        image:
+          pullPolicy: Always
+        resources:
+          requests:
+            cpu: 100m
+            memory: 200Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+      initContainer:
+        image:
+          pullPolicy: Always
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+    backgroundController:
+      container:
+        image:
+          pullPolicy: Always
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+    cleanupController:
+      container:
+        image:
+          pullPolicy: Always
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+    reportsController:
+      container:
+        image:
+          pullPolicy: Always
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi

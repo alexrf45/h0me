@@ -1,0 +1,27 @@
+---
+# Tailscale operator metrics — chart does not ship its own monitor.
+# The operator pod exposes Prometheus metrics on :9001 by default.
+# selector.matchLabels mirrors the Helm chart's pod labels; verify with
+# `kube dev -n tailscale get pods --show-labels` and adjust if the chart
+# changes the selector.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: tailscale-operator
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: tailscale-operator
+    app.kubernetes.io/component: monitor
+    app.kubernetes.io/part-of: observability
+spec:
+  namespaceSelector:
+    matchNames:
+      - tailscale
+  selector:
+    matchLabels:
+      app: operator
+  podMetricsEndpoints:
+    - targetPort: 9001
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

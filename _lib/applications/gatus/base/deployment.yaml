@@ -1,0 +1,121 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatus
+  namespace: gatus
+  labels:
+    app.kubernetes.io/name: gatus
+    app.kubernetes.io/instance: gatus-${ENVIRONMENT}
+    app.kubernetes.io/version: "${GATUS_VERSION}"
+    environment: "${ENVIRONMENT}"
+spec:
+  # Postgres-backed history (N-6) — uptime survives pod restarts. Recreate
+  # strategy keeps the ResourceQuota tight (no rollout surge); brief gap on
+  # config-driven rollout is fine for a status engine.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gatus
+  template:
+    metadata:
+      labels:
+        app: gatus
+        app.kubernetes.io/name: gatus
+        app.kubernetes.io/instance: gatus-${ENVIRONMENT}
+        app.kubernetes.io/version: "${GATUS_VERSION}"
+        node: worker
+    spec:
+      nodeSelector:
+        node: "worker"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gatus
+          image: ghcr.io/twin/gatus:${GATUS_VERSION}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            # runAsUser set explicitly: Kyverno add-default-securitycontext
+            # would mutate an unset runAsUser to 65534; gatus image uses 1000.
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            # Gatus's config.yaml references these as $${VAR} (the $$ escapes
+            # Flux's envsubst so the literal ${VAR} survives to Gatus's own
+            # env-var interpolation at runtime).
+            - name: SLACK_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: gatus-slack-webhook
+                  key: url
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: gatus-db-creds
+                  key: username
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gatus-db-creds
+                  key: password
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: gatus-config
+            items:
+              - key: config.yaml
+                path: config.yaml
+        # Gatus writes ephemeral state under /data; emptyDir keeps it
+        # RO-rootfs-compatible. With postgres persistence (N-6), history
+        # lives in CNPG — /data is just transient scratch.
+        - name: data
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

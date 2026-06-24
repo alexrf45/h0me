@@ -1,0 +1,62 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: kromgo-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: kromgo
+spec:
+  description: |
+    Allow rules for kromgo (Prometheus → shields.io endpoint proxy).
+    Ingress: Cilium Gateway (reserved:ingress) for the internal HTTPRoute,
+    cloudflared (the public dev-kromgo path, plain pod-to-pod), and kubelet
+    probes (host/remote-node) — all on :8080.
+    Egress: DNS, and prometheus-operated in the same monitoring namespace
+    on :9090 for PromQL queries.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: monitoring
+      app: kromgo
+  ingress:
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # cloudflared tunnel connector → kromgo. The public hostname
+    # dev-kromgo.th0th.dev is proxied from cloudflared directly to the
+    # kromgo pod (not via the Cilium Gateway / reserved:ingress identity).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: cloudflared
+            app: cloudflared
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    # DNS against kube-dns.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Prometheus query path — prometheus-operated headless svc auto-created
+    # by the Prometheus Operator from the Prometheus CR in monitoring.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP

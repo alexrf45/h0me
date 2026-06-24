@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homer
+  labels:
+    app: "homer"
+    th0th.dev/policy-target: "application"
+    ${GATEWAY_NAME}: "true"
+    # Homer is a static dashboard with no privileged needs — enforce the
+    # restricted Pod Security Standard (the pod spec satisfies it).
+    pod-security.kubernetes.io/enforce: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"
