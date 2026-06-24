@@ -18,7 +18,7 @@ spec:
   csi:
     driver: freenas-api-iscsi
     fsType: "ext4"
-    volumeHandle: dev-freshrss-pvc  # Must match the zvol name in TrueNAS
+    volumeHandle: dev-freshrss-pv  # Must match the zvol name in TrueNAS
     volumeAttributes:
       # These match your driver config
       lun: "0"
