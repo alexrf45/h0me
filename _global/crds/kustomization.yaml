@@ -5,4 +5,5 @@ resources:
   - ./trust-manager
   - ./tailscale
   - ./external-snapshotter
+  - ./gateway-api
   - crds-cnpg.yaml

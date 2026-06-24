@@ -107,7 +107,7 @@ spec:
       loadbalancerMode: shared
       service:
         externalTrafficPolicy: Cluster
-        loadBalancerIP: "192.168.20.225"
+        loadBalancerIP: "192.168.20.226"
         name: cilium-ingress
         type: LoadBalancer
     gatewayAPI:
