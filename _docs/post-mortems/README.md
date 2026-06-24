@@ -33,6 +33,7 @@ searchable record of "we hit this before, here's what it was."
 
 | Date | Severity | Incident |
 | ---- | -------- | -------- |
+| 2026-06-23 | SEV2 | [ExternalDNS not upserting to UniFi — Gateway API CRD channel mismatch](2026-06-23-externaldns-not-upserting-gateway-api-crd-channel.md) |
 | 2026-06-23 | SEV2 | [Wildcard cert blocked — cf-token 1Password property mismatch](2026-06-23-cf-token-1password-property-mismatch.md) |
 | 2026-06-23 | SEV2 | [iSCSI PVCs Pending — TrueNAS initiator group ID mismatch](2026-06-23-iscsi-initiator-group-mismatch.md) |
 | 2026-06-23 | SEV2 | [FreshRSS volume won't attach — PV volumeHandle / zvol name mismatch](2026-06-23-freshrss-zvol-volumehandle-mismatch.md) |

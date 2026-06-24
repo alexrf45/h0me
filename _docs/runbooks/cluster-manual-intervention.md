@@ -115,6 +115,70 @@ Tell: **dynamic** volumes (with the corrected initiator group) mount fine while
 
 ---
 
+## Gateway API — Gateway "Waiting for controller" / ExternalDNS publishes nothing
+
+### Symptom: ExternalDNS upserts no records; internal hostnames don't resolve
+
+ExternalDNS logs `No endpoints could be generated from HTTPRoute <ns>/<route>`
+for every route, then `All records are already up to date` — it generates zero
+endpoints, so it never calls the DNS provider/webhook. Walk the chain **upstream**
+(ExternalDNS is the last link, not the cause):
+
+```sh
+# Does the Gateway have an address? (ExternalDNS' gateway-httproute target)
+kube dev -n networking get gateway dev-app-gateway -o jsonpath='{.status.addresses}{"\n"}'
+# Is the GatewayClass accepted?
+kube dev get gatewayclass cilium -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+```
+
+A Gateway stuck `Accepted=Unknown` / `Programmed=Unknown` ("Waiting for
+controller") with **no backing `cilium-gateway-<name>` Service** means Cilium's
+Gateway API controller never started. Check the operator:
+
+```sh
+kube dev -n networking logs deploy/cilium-operator | grep -i "GatewayAPI resources"
+# error="... \"tlsroutes...\" not found / referencegrants ... does not have version \"v1\""
+```
+
+That error = **wrong Gateway API CRD channel/version**. Cilium pins a specific
+gateway-api release; check the version Cilium requires (its
+`Documentation/.../gateway-api/installation.rst`) and confirm the installed CRDs
+match channel + version:
+
+```sh
+kube dev get crd referencegrants.gateway.networking.k8s.io \
+  -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}{"/"}{.metadata.annotations.gateway\.networking\.k8s\.io/channel}{" versions="}{range .spec.versions[*]}{.name}{","}{end}{"\n"}'
+```
+
+CRDs are Git-managed in `_global/crds/gateway-api/` (the `crds` Flux layer). Fix
+the version there, commit, reconcile `crds`.
+
+### Cilium operator checks Gateway API CRDs only at startup
+
+Like the CSI driver, the operator evaluates the required CRDs **once at process
+start**. After installing/upgrading Gateway API CRDs, restart it:
+
+```sh
+kube dev -n networking rollout restart deploy/cilium-operator
+kube dev -n networking rollout status  deploy/cilium-operator --timeout=90s
+```
+
+Then the GatewayClass goes `Accepted=True`, the Gateway gets an address, and
+ExternalDNS publishes on its next sync (~1m, or `rollout restart deploy/external-dns-unifi`).
+
+### Gotcha: a LoadBalancer Service stuck `<pending>` with a healthy IP pool
+
+A static `loadBalancerIP` must fall **inside** a `CiliumLoadBalancerIPPool`
+block, or LB-IPAM silently leaves the Service `<pending>` even when the pool has
+free addresses:
+
+```sh
+kube dev get ciliumloadbalancerippool -o jsonpath='{range .items[*].spec.blocks[*]}{.start}{"-"}{.stop}{"\n"}{end}'
+kube dev -n networking get svc <svc> -o jsonpath='{.spec.loadBalancerIP}{"\n"}'  # must be in range
+```
+
+---
+
 ## HelmRelease stuck after a transient dependency failure
 
 If a HelmRelease **install/upgrade timed out** while a dependency was broken
