@@ -2,7 +2,7 @@
 
 ![](./_docs/images/lab.png)
 
-<h1 style="color: #ddc7a1;">h0me</h1>
+ # h0me
 
 </div>
 
