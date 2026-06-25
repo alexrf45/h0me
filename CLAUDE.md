@@ -12,7 +12,7 @@ reference `_docs/lab_architecture.md`
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `_clusters/`  | Cluster entrypoints — Flux reads `_clusters/<env>` to start reconciliation                                                    |
 | `_lib/`       | Shared manifests, organized by deployment layer (controllers, pki, secrets, networking, dns, storage, security, applications) |
-| `global/`     | CRDs applied across all clusters (Prometheus Operator, CNPG)                                                                  |
+| `_global/`    | CRDs applied across all clusters (Prometheus Operator, CNPG)                                                                  |
 | `_infra/`     | Cluster provisioning (Talos on Proxmox, wallabag S3 backup infra)                                                             |
 | `_templates/` | Boilerplate for HelmRelease, HelmRepository, Kustomization resources                                                          |
 | `_hack/`      | One-off scripts and example YAML                                                                                              |

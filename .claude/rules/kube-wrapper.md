@@ -44,4 +44,4 @@ kubeconfig more than once in a single invocation.
 Env → cluster mapping (from `_kubeop_cluster_for_env` in the wrapper):
 `dev → memphis`, `staging → staging`, `prod → prod`. The 1Password Secure
 Note is titled `<cluster-name>-kubeconfig` and is exported by the terraform
-module at `terraform/dev/talos-pve-v3.1.0/config-export.tf`.
+module at `_infra/modules/talos-pve/config-export.tf`.
