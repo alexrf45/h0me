@@ -1,0 +1,30 @@
+---
+# Chart-deployed authentik runs single-replica server and worker deployments.
+# Both are drain-sensitive, so each gets a maxUnavailable:1 PDB declaring
+# disruption intent while keeping node drains unblocked (minAvailable would pin
+# the only pod). Selectors scope to the server/worker pods via the chart's
+# component label and exclude the CNPG database pods (name=postgresql), which
+# CNPG covers with its own PDB.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: authentik-server
+  namespace: authentik
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: server
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: authentik-worker
+  namespace: authentik
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: authentik
+      app.kubernetes.io/component: worker

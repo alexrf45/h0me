@@ -1,0 +1,15 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gatus
+  namespace: gatus
+spec:
+  # Single-replica Recreate deployment. maxUnavailable:1 declares disruption
+  # intent while keeping node drains unblocked (minAvailable would pin the only
+  # pod). Selector matches the app pod ONLY; CNPG runs its own PDB over the
+  # cnpg.io/* database pods.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: gatus
