@@ -2,6 +2,11 @@
 .claude/sprint-state.json
 .claude/sprints/*/status.json
 
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Local .terraform directories
 .terraform/
 
