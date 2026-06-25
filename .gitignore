@@ -1,3 +1,7 @@
+# Sprint orchestrator runtime state (keep accept.sh tracked)
+.claude/sprint-state.json
+.claude/sprints/*/status.json
+
 # Local .terraform directories
 .terraform/
 
