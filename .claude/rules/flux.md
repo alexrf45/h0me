@@ -12,7 +12,7 @@ Defined in `_clusters/dev/cluster.yaml`. Each layer depends on the one above it:
 8. **dns** — ExternalDNS (depends on secrets for Cloudflare API key)
 9. **storage** — freenas-iscsi CSI, local-path provisioner, Barman Cloud
 10. **security** — Cilium NetworkPolicies, Kyverno policies
-11. **applications** — App workloads (currently only wallabag, using `_lib/applications/wallabag/overlays/dev`)
+11. **applications** — App workloads (authentik, freshrss, gatus, homer — each via `_lib/applications/<app>/overlays/dev`)
 
 ## Bootstrap (Flux Operator)
 
@@ -42,4 +42,4 @@ Apps in `_lib/applications/<app>/` follow kustomize base/overlay structure:
 
 ## Cluster config substitution
 
-The `cluster-config` ConfigMap (at `_clusters/dev/config/cluster-configs.yaml`) provides variables like `${GATEWAY_NAME}`, `${WALLABAG_SUBDOMAIN}`, `${ENVIRONMENT}` that Flux substitutes into manifests at reconcile time via `postBuild.substituteFrom`.
+The `cluster-config` ConfigMap (at `_clusters/dev/config/cluster-configs.yaml`) provides variables like `${GATEWAY_NAME}`, `${FRESHRSS_SUBDOMAIN}`, `${ENVIRONMENT}` that Flux substitutes into manifests at reconcile time via `postBuild.substituteFrom`.
