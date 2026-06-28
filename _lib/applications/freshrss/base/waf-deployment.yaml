@@ -26,6 +26,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
+        # emptyDirs below are group-owned by fsGroup so the caddy user (1000)
+        # can write them under readOnlyRootFilesystem.
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -33,10 +36,18 @@ spec:
           image: ghcr.io/coreruleset/coraza-crs:4.25.0-caddy-alpine-202604120304
           imagePullPolicy: Always
           securityContext:
+            # Run as the image's caddy user (1000) explicitly so the cluster's
+            # Kyverno add-default-securitycontext mutation does not force 65534.
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
             capabilities:
               drop:
                 - ALL
+            seccompProfile:
+              type: RuntimeDefault
           env:
             # Upstream FreshRSS app Service (in-namespace).
             - name: BACKEND
@@ -69,6 +80,18 @@ spec:
             - name: overrides
               mountPath: /opt/coraza/overrides
               readOnly: true
+            # Writable paths required under readOnlyRootFilesystem (from image:
+            # CORAZA_TMP_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME, ACCESSLOG, audit dir).
+            - name: tmp
+              mountPath: /tmp
+            - name: caddy-config
+              mountPath: /config
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-log
+              mountPath: /var/log/caddy
+            - name: coraza-log
+              mountPath: /var/log/coraza
           livenessProbe:
             tcpSocket:
               port: http
@@ -84,3 +107,13 @@ spec:
         - name: overrides
           configMap:
             name: freshrss-waf-overrides
+        - name: tmp
+          emptyDir: {}
+        - name: caddy-config
+          emptyDir: {}
+        - name: caddy-data
+          emptyDir: {}
+        - name: caddy-log
+          emptyDir: {}
+        - name: coraza-log
+          emptyDir: {}
