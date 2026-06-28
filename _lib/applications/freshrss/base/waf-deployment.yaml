@@ -80,8 +80,13 @@ spec:
             - name: overrides
               mountPath: /opt/coraza/overrides
               readOnly: true
-            # Writable paths required under readOnlyRootFilesystem (from image:
-            # CORAZA_TMP_DIR, XDG_CONFIG_HOME, XDG_DATA_HOME, ACCESSLOG, audit dir).
+            # Writable paths required under readOnlyRootFilesystem. The entrypoint
+            # generates /etc/caddy/Caddyfile and /opt/coraza/config/coraza.conf at
+            # start; coraza/caddy also need tmp, XDG, and log dirs.
+            - name: caddy-etc
+              mountPath: /etc/caddy
+            - name: coraza-config
+              mountPath: /opt/coraza/config
             - name: tmp
               mountPath: /tmp
             - name: caddy-config
@@ -107,6 +112,10 @@ spec:
         - name: overrides
           configMap:
             name: freshrss-waf-overrides
+        - name: caddy-etc
+          emptyDir: {}
+        - name: coraza-config
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
         - name: caddy-config
