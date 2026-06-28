@@ -5,11 +5,11 @@ metadata:
   name: homer
   namespace: homer
 spec:
-  # Guardrail for a single tiny static dashboard pod (Recreate strategy, no
-  # rollout surge). Sized well above the container's 5m/16Mi request and
-  # 100m/32Mi limit.
+  # Guardrail for the static dashboard pod plus its in-namespace Coraza WAF
+  # proxy (homer-waf: 50m/128Mi req, 500m/256Mi limit). Sized with headroom for
+  # both plus a rollout surge.
   hard:
-    requests.cpu: 100m
-    requests.memory: 64Mi
-    limits.cpu: 500m
-    limits.memory: 256Mi
+    requests.cpu: 300m
+    requests.memory: 512Mi
+    limits.cpu: "2"
+    limits.memory: 1Gi
