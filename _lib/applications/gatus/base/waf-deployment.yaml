@@ -1,0 +1,165 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gatus-waf
+  namespace: gatus
+  labels:
+    app.kubernetes.io/name: gatus-waf
+    app.kubernetes.io/instance: gatus-waf-${ENVIRONMENT}
+    app.kubernetes.io/version: "4.25.0"
+    environment: "${ENVIRONMENT}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gatus-waf
+  template:
+    metadata:
+      labels:
+        app: gatus-waf
+        node: worker
+        env: "${ENVIRONMENT}"
+        app.kubernetes.io/name: gatus-waf
+        app.kubernetes.io/instance: gatus-waf-${ENVIRONMENT}
+        app.kubernetes.io/version: "4.25.0"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # emptyDirs below are group-owned by fsGroup so the caddy user (1000)
+        # can write them under readOnlyRootFilesystem.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # /opt/coraza/config holds baked-in CRS files (crs-setup.conf) AND is
+        # written at runtime (generated coraza.conf). Under readOnlyRootFilesystem
+        # an empty emptyDir would hide the baked files, so seed it first.
+        - name: seed-coraza-config
+          image: ghcr.io/coreruleset/coraza-crs:4.25.0-caddy-alpine-202604120304
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - /bin/sh
+            - -c
+            - cp -a /opt/coraza/config/. /seed/
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+          volumeMounts:
+            - name: coraza-config
+              mountPath: /seed
+      containers:
+        - name: coraza
+          image: ghcr.io/coreruleset/coraza-crs:4.25.0-caddy-alpine-202604120304
+          imagePullPolicy: Always
+          securityContext:
+            # Run as the image's caddy user (1000) explicitly so the cluster's
+            # Kyverno add-default-securitycontext mutation does not force 65534.
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop:
+                - ALL
+              # The caddy binary ships with cap_net_bind_service=+ep; under
+              # no_new_privs (allowPrivilegeEscalation: false) execve EPERMs
+              # unless the cap is in the permitted set, even though we bind 8080.
+              add:
+                - NET_BIND_SERVICE
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            # Upstream Gatus app Service (in-namespace).
+            - name: BACKEND
+              value: gatus.gatus.svc.cluster.local:8080
+            - name: PORT
+              value: "8080"
+            # Phase 1: observe + tune. Flip to "On" to block after tuning.
+            - name: CORAZA_RULE_ENGINE
+              value: DetectionOnly
+            - name: PARANOIA
+              value: "1"
+            - name: BLOCKING_PARANOIA
+              value: "1"
+            - name: ANOMALY_INBOUND
+              value: "5"
+            - name: CORAZA_AUDIT_LOG
+              value: /dev/stdout
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 50m
+            limits:
+              memory: 256Mi
+              cpu: 500m
+          volumeMounts:
+            - name: overrides
+              mountPath: /opt/coraza/overrides
+              readOnly: true
+            # Writable paths required under readOnlyRootFilesystem. The entrypoint
+            # generates /etc/caddy/Caddyfile and /opt/coraza/config/coraza.conf at
+            # start; coraza/caddy also need tmp, XDG, and log dirs.
+            - name: caddy-etc
+              mountPath: /etc/caddy
+            - name: coraza-config
+              mountPath: /opt/coraza/config
+            - name: tmp
+              mountPath: /tmp
+            - name: caddy-config
+              mountPath: /config
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-log
+              mountPath: /var/log/caddy
+            - name: coraza-log
+              mountPath: /var/log/coraza
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: overrides
+          configMap:
+            name: gatus-waf-overrides
+        - name: caddy-etc
+          emptyDir: {}
+        - name: coraza-config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: caddy-config
+          emptyDir: {}
+        - name: caddy-data
+          emptyDir: {}
+        - name: caddy-log
+          emptyDir: {}
+        - name: coraza-log
+          emptyDir: {}

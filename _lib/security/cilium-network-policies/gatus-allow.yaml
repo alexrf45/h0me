@@ -23,14 +23,33 @@ spec:
       k8s:io.kubernetes.pod.namespace: gatus
       app: gatus
   ingress:
+    # Internal gateway traffic now arrives via the gatus-waf (Coraza) pod, not
+    # the gateway directly. Starter Cilium L7 policy: allow only a safe HTTP
+    # method set into the app pod — defense-in-depth beneath the signature WAF.
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: gatus
+            app: gatus-waf
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+          rules:
+            http:
+              - method: GET
+              - method: POST
+              - method: HEAD
+              - method: OPTIONS
+    # Kubelet probes hit port 8080 directly — keep them L4-only so the L7 method
+    # filter above does not apply to them.
     - fromEntities:
-        - ingress
         - host
         - remote-node
       toPorts:
         - ports:
             - port: "8080"
               protocol: TCP
+    # Prometheus scrape reaches the gatus pod directly (not via the WAF).
     - fromEndpoints:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: monitoring

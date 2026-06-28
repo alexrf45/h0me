@@ -20,5 +20,5 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: gatus
+        - name: gatus-waf
           port: 8080

@@ -1,0 +1,47 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: homer-waf-allow
+  labels:
+    th0th.dev/policy-target: application
+    app: homer-waf
+spec:
+  description: |
+    Allow rules for the homer Coraza WAF proxy: gateway ingress on 8080,
+    DNS, and egress to the homer app pod on 8080.
+  endpointSelector:
+    matchLabels:
+      k8s:io.kubernetes.pod.namespace: homer
+      app: homer-waf
+  ingress:
+    # Cilium Gateway API: backend connections arrive from the reserved:ingress
+    # identity (cilium-envoy). host / remote-node cover kubelet probes.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # Upstream: the homer application pod.
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: homer
+            app: homer
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
