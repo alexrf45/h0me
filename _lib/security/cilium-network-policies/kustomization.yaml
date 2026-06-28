@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - freshrss-default-deny.yaml
   - freshrss-allow.yaml
+  - freshrss-waf-allow.yaml
   - freshrss-cnpg-allow.yaml
   - freshrss-dump-allow.yaml
   - authentik-default-deny.yaml

@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: freshrss-waf-overrides
+  namespace: freshrss
+  labels:
+    app.kubernetes.io/name: freshrss-waf
+    app.kubernetes.io/instance: freshrss-waf-${ENVIRONMENT}
+data:
+  # Loaded last (/opt/coraza/overrides/*.conf), after the OWASP CRS rules.
+  # Add SecRuleRemoveById / SecRuleUpdateTargetById exclusions here as the
+  # DetectionOnly phase surfaces FreshRSS false positives. Empty by design.
+  freshrss-overrides.conf: |
+    # FreshRSS WAF rule exclusions — populate during detection-only tuning.

@@ -20,5 +20,5 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: freshrss
-          port: 80
+        - name: freshrss-waf
+          port: 8080

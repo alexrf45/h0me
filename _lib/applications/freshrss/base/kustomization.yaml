@@ -7,6 +7,9 @@ resources:
   - init-script-configmap.yaml
   - deployment.yaml
   - service.yaml
+  - waf-overrides-configmap.yaml
+  - waf-deployment.yaml
+  - waf-service.yaml
   - httproute.yaml
   - limitrange.yaml
   - resourcequota.yaml
