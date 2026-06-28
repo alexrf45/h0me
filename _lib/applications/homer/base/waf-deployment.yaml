@@ -91,9 +91,9 @@ spec:
               value: homer.homer.svc.cluster.local:8080
             - name: PORT
               value: "8080"
-            # Phase 1: observe + tune. Flip to "On" to block after tuning.
+            # Blocking. Detection-only verified clean; attacks return 403.
             - name: CORAZA_RULE_ENGINE
-              value: DetectionOnly
+              value: "On"
             - name: PARANOIA
               value: "1"
             - name: BLOCKING_PARANOIA
