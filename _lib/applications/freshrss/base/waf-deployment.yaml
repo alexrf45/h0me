@@ -46,6 +46,11 @@ spec:
             capabilities:
               drop:
                 - ALL
+              # The caddy binary ships with cap_net_bind_service=+ep; under
+              # no_new_privs (allowPrivilegeEscalation: false) execve EPERMs
+              # unless the cap is in the permitted set, even though we bind 8080.
+              add:
+                - NET_BIND_SERVICE
             seccompProfile:
               type: RuntimeDefault
           env:
