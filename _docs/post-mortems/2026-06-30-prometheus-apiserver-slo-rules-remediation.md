@@ -96,11 +96,21 @@ window (the `for:` durations) — expected, given the drivers are removed.
 
 ## Prevention / follow-up
 
-- **Optional second commit (deferred):** now that the consuming rules are gone,
-  extend the `kubeApiServer.serviceMonitor.metricRelabelings` drop
-  (`helmrelease.yaml:271-274`) to also shed
-  `apiserver_request_sli_duration_seconds_bucket`, reclaiming cardinality/memory
-  against the 2 Gi cap. Apply separately and verify no remaining rule references it.
+- **SLI-duration bucket drop — DONE** (commit `3a2ea29`). The deferred premise
+  ("the SLI bucket is now unused") was **wrong**: the kept
+  `kube-apiserver-histogram.rules` group still consumed
+  `apiserver_request_sli_duration_seconds_bucket` (its two
+  `cluster_quantile:apiserver_request_sli_duration_seconds:histogram_quantile`
+  rules), confirmed by reading the live rule expressions. The bucket carried
+  **18,062 series**. Decision (recorded in the SLO rule-load doc): trade the
+  apiserver p99 latency quantiles for the cardinality reclaim — so
+  `kubeApiserverHistogram: false` was added alongside extending the
+  `metricRelabelings` regex to drop the SLI bucket.
+  - Verification: HelmRelease upgraded to release **v3**; the
+    `kps-kube-apiserver-histogram.rules` PrometheusRule CR is gone; and
+    `count(apiserver_request_sli_duration_seconds_bucket)` drained **18062 → 0**
+    within ~80 s of the upgrade (metricRelabelings drop at scrape time + series
+    staleness). No `kube-apiserver-*` recording groups remain.
 - **Storage:** the Prometheus TSDB on the `iscsi` PVC is the physical IO wall; if
   baseline disk IO stays elevated independent of these rules (TSDB compaction was
   not isolated from query load), evaluate faster storage or a larger block budget.

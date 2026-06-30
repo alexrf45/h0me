@@ -34,9 +34,12 @@ defaultRules:
     kubeApiserverAvailability: false
 ```
 
-Optional follow-on once the consuming rules are gone — extend the existing
-`kubeApiServer.serviceMonitor.metricRelabelings` drop (`helmrelease.yaml:271-274`)
-to also shed the now-unused SLI bucket:
+Follow-on (implemented, commit `3a2ea29`) — reclaim the SLI bucket's ~18k series.
+Note the bucket is **not** unused after disabling burnrate/availability/slos: the
+`kube-apiserver-histogram.rules` group still consumes it. Reclaiming it therefore
+also requires `kubeApiserverHistogram: false` (giving up apiserver p99 latency
+quantiles), then extending the `kubeApiServer.serviceMonitor.metricRelabelings`
+drop:
 
 ```yaml
 regex: "apiserver_request_duration_seconds_bucket|apiserver_response_sizes_bucket|apiserver_request_sli_duration_seconds_bucket"
