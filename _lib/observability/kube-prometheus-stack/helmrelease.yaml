@@ -33,6 +33,10 @@ spec:
 
     defaultRules:
       create: true
+      rules:
+        kubeApiserverSlos: false
+        kubeApiserverBurnrate: false
+        kubeApiserverAvailability: false
 
     alertmanager:
       alertmanagerSpec:
