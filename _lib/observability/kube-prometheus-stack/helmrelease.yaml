@@ -37,6 +37,7 @@ spec:
         kubeApiserverSlos: false
         kubeApiserverBurnrate: false
         kubeApiserverAvailability: false
+        kubeApiserverHistogram: false
 
     alertmanager:
       alertmanagerSpec:
@@ -268,13 +269,12 @@ spec:
     kubeApiServer:
       enabled: true
       serviceMonitor:
-        # Drop the two highest-cardinality apiserver histograms. They are the
-        # biggest memory lever against Prometheus' 2Gi cap; keeping _count/_sum
-        # (dropped here is only _bucket) still yields rates/averages, only the
-        # quantile estimation is lost.
+        # Drop the highest-cardinality apiserver _bucket histograms (biggest
+        # memory lever vs the 2Gi cap). _sli_duration_ is droppable now that its
+        # only consumer, kube-apiserver-histogram.rules, is disabled above.
         metricRelabelings:
           - sourceLabels: [__name__]
-            regex: "apiserver_request_duration_seconds_bucket|apiserver_response_sizes_bucket"
+            regex: "apiserver_request_duration_seconds_bucket|apiserver_response_sizes_bucket|apiserver_request_sli_duration_seconds_bucket"
             action: drop
     kubelet:
       enabled: true
