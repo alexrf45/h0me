@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homer-waf
+  namespace: homer
+  labels:
+    app.kubernetes.io/name: homer-waf
+    app.kubernetes.io/instance: homer-waf-${ENVIRONMENT}
+    app.kubernetes.io/version: "4.25.0"
+spec:
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: http
+      name: http
+  selector:
+    app: homer-waf
+    node: worker

@@ -20,5 +20,5 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: homer
+        - name: homer-waf
           port: 8080

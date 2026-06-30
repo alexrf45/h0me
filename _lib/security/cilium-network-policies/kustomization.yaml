@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - freshrss-default-deny.yaml
   - freshrss-allow.yaml
+  - freshrss-waf-allow.yaml
   - freshrss-cnpg-allow.yaml
   - freshrss-dump-allow.yaml
   - authentik-default-deny.yaml
@@ -12,8 +13,10 @@ resources:
   - authentik-dump-allow.yaml
   - homer-default-deny.yaml
   - homer-allow.yaml
+  - homer-waf-allow.yaml
   - gatus-default-deny.yaml
   - gatus-allow.yaml
+  - gatus-waf-allow.yaml
   - gatus-cnpg-allow.yaml
   - gatus-dump-allow.yaml
   - cloudflared-default-deny.yaml

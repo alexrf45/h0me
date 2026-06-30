@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: freshrss-waf
+  namespace: freshrss
+  labels:
+    app.kubernetes.io/name: freshrss-waf
+    app.kubernetes.io/instance: freshrss-waf-${ENVIRONMENT}
+    app.kubernetes.io/version: "4.25.0"
+spec:
+  type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: http
+      name: http
+  selector:
+    app: freshrss-waf
+    node: worker

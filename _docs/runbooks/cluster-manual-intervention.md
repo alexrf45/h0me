@@ -237,3 +237,74 @@ issue is fixed:
 kube dev -n <ns> delete pod <pod>             # one pod
 kube dev -n <ns> rollout restart deploy/<name>  # or the whole workload
 ```
+
+---
+
+## Node maintenance — rebalancing pods after a cordon/drain
+
+### Symptom: mass restarts concentrated on one worker; that node pinned ~100% CPU
+
+After host maintenance that cordons/drains nodes one at a time (e.g. a rolling
+Proxmox upgrade), the scheduler funnels evicted pods onto whichever node stays
+schedulable longest. Uncordoning afterwards restores schedulability but
+**Kubernetes never rebalances already-running pods** — the pile stays put, and
+that node runs starved.
+
+The tell is a lopsided `top nodes` plus restarts clustered on the hot node:
+
+```sh
+kube dev top nodes                            # one worker ~100%, peers single-digit %
+kube dev get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # high-restart pods all on that node
+# all nodes schedulable (no taints / Unschedulable:false) yet load is lopsided:
+kube dev get nodes -o wide
+```
+
+Under CPU starvation the failures are **timeouts**, not real faults — leader-election
+sidecars (`failed to renew lease ... context deadline exceeded → stopped leading`,
+CrashLoopBackOff) and health probes (`probe failed: ... timed out` / `context
+deadline exceeded`, kubelet-killed with exit 137). **Do not retune probes** — they
+pass on an unloaded node. Fix the distribution.
+
+### Fix: drain the hot node so the scheduler spreads its pods
+
+```sh
+HOT=dev-memphis-node-<hot-node-id>            # the saturated worker from `top nodes`
+
+# 1. See what will move
+kube dev get pods -A -o wide --field-selector spec.nodeName=$HOT
+
+# 2. Stop new pods landing on it
+kube dev cordon $HOT
+
+# 3. Evict everything off it onto the idle workers
+kube dev drain $HOT --ignore-daemonsets --delete-emptydir-data --disable-eviction
+```
+
+- `--ignore-daemonsets` — required; per-node DaemonSet pods (local-path / freenas-node)
+  stay and self-stabilize once the node's CPU frees up.
+- `--disable-eviction` — deletes instead of evicting, bypassing the CNPG single-instance
+  PodDisruptionBudget that would otherwise hang the drain. This moves the CNPG instance
+  pod too (it recreates on another node and reattaches its iSCSI PVC — brief DB blip).
+  Omit it if you want PDBs respected, but a single-instance CNPG PDB will block the drain.
+- If drain stops on an **unmanaged/standalone** pod it names, decide per-pod — don't blanket
+  `--force` (that permanently deletes it).
+
+A lighter-touch alternative when you don't need the whole node cleared is to delete
+just the concentrated pods so their controllers reschedule them onto the idle workers.
+
+### Verify, then uncordon
+
+```sh
+kube dev get pods -A -o wide -w               # moved pods Running on the idle workers; Ctrl-C when settled
+kube dev top nodes                            # hot node falls toward the others
+kube dev uncordon $HOT                        # restore as schedulable capacity (pods won't migrate back — fine)
+kube dev get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # restart counts stop climbing (history doesn't reset)
+```
+
+> Recreated Deployment pods come back with restart count 0 on their new nodes — a clean
+> `get pods` is the real all-clear. After uncordoning any node, **always check `top nodes`**;
+> a worker at ~100% while peers idle is this exact failure mode.
+
+See `_docs/post-mortems/2026-06-27-worker-node-cpu-starvation-after-cordon-drain.md`
+for the full incident. Automating this away (descheduler / `topologySpreadConstraints`)
+is tracked as M3 in the latest review.
