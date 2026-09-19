@@ -130,8 +130,8 @@ wrappers.
 1. **Quiesce the DB** so nothing writes the zvol while you operate:
 
    ```sh
-   k8sop dev flux suspend kustomization applications
-   kube dev -n <app> scale cluster <app>-dev-cluster --replicas=0   # or delete the cluster CR
+   k8sop home flux suspend kustomization applications
+   kube home -n <app> scale cluster <app>-dev-cluster --replicas=0   # or delete the cluster CR
    ```
    Confirm the iSCSI extent has no active sessions on the TrueNAS side.
 
@@ -164,9 +164,9 @@ wrappers.
 4. **Bring the DB back** and reconcile:
 
    ```sh
-   kube dev -n <app> get pv dev-<app>-db-pv          # still Bound/Available, Retain
-   k8sop dev flux resume kustomization applications   # recreates the cluster CR
-   kube dev -n <app> get cluster <app>-dev-cluster -w
+   kube home -n <app> get pv dev-<app>-db-pv          # still Bound/Available, Retain
+   k8sop home flux resume kustomization applications   # recreates the cluster CR
+   kube home -n <app> get cluster <app>-dev-cluster -w
    ```
 
 5. **Validate** (`kubectl-cnpg status`, row counts) per the rescue guide §5.
@@ -188,14 +188,14 @@ recoverable as long as TrueNAS is intact.
    `_docs/migrations/flux-operator-and-cilium-handover.md`.
 
 2. **Re-fetch cluster access:** `kube-flush` then verify
-   `kube dev get nodes`.
+   `kube home get nodes`.
 
 3. **Let storage + CNPG operators come up**, but expect the app DBs to try to
    `initdb` fresh on their static PVs. The PVs are `Retain` and the zvols still
    hold data — you do **not** want a fresh `initdb` to land on top. Two options:
 
    - **Preferred — adopt existing zvols:** before the `applications` layer
-     reconciles, suspend it (`k8sop dev flux suspend kustomization applications`).
+     reconciles, suspend it (`k8sop home flux suspend kustomization applications`).
      Confirm each static PV (`dev-<app>-db-pv`) re-binds to its zvol, then
      recover via Scenario A (snapshot) or C (in-place zvol) so the existing data
      is used rather than overwritten.

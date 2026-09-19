@@ -1,11 +1,11 @@
 ## Rendering kustomize overlays
 
 The standalone `kustomize` binary is **not installed** in this environment, so
-`k8sop dev kustomize build <dir>` fails with `kustomize: command not found`.
+`k8sop home kustomize build <dir>` fails with `kustomize: command not found`.
 Use kubectl's built-in kustomize through the `kube` wrapper instead:
 
 ```
-kube dev kustomize <dir>
+kube home kustomize <dir>
 ```
 
 This runs `kubectl kustomize <dir>`. Note the syntax difference from standalone
@@ -14,8 +14,8 @@ kustomize: **there is no `build` subcommand** — pass the directory directly.
 Examples:
 
 ```
-kube dev kustomize _lib/applications/authentik/overlays/dev
-kube dev kustomize _lib/applications/freshrss/base
+kube home kustomize _lib/applications/authentik/overlays/dev
+kube home kustomize _lib/applications/freshrss/base
 ```
 
 Notes:

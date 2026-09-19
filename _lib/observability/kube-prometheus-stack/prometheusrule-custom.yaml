@@ -31,7 +31,7 @@ spec:
             component: flux
           annotations:
             summary: "Flux Kustomization {{ $labels.namespace }}/{{ $labels.name }} not ready"
-            description: "Kustomization has been NotReady for 10m. Run `k8sop dev flux get kustomization {{ $labels.name }}` for the reconciliation error."
+            description: "Kustomization has been NotReady for 10m. Run `k8sop home flux get kustomization {{ $labels.name }}` for the reconciliation error."
 
         - alert: FluxHelmReleaseNotReady
           expr: max by (namespace, name) (gotk_reconcile_condition{type="Ready", status="False", kind="HelmRelease"}) == 1
@@ -110,7 +110,7 @@ spec:
             summary: "Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} expires in <14d"
             description: |
               cert-manager Certificate {{ $labels.name }} (issuer {{ $labels.issuer_kind }}/{{ $labels.issuer_name }}) has {{ printf "%.1f" $value }} days left.
-              Confirm renewal is progressing; check `kube dev -n {{ $labels.exported_namespace }} describe certificate {{ $labels.name }}` for ACME or issuer errors.
+              Confirm renewal is progressing; check `kube home -n {{ $labels.exported_namespace }} describe certificate {{ $labels.name }}` for ACME or issuer errors.
 
         - alert: CertExpiringSoon
           expr: |
@@ -123,7 +123,7 @@ spec:
             summary: "Certificate {{ $labels.exported_namespace }}/{{ $labels.name }} expires in <3d"
             description: |
               cert-manager Certificate {{ $labels.name }} (issuer {{ $labels.issuer_kind }}/{{ $labels.issuer_name }}) has {{ printf "%.1f" $value }} days left and is about to outage TLS.
-              Force renewal: `kube dev -n {{ $labels.exported_namespace }} cmctl renew {{ $labels.name }}`. Investigate the Issuer if renewal is failing.
+              Force renewal: `kube home -n {{ $labels.exported_namespace }} cmctl renew {{ $labels.name }}`. Investigate the Issuer if renewal is failing.
 
     # PVC near-full — kubelet exposes available + capacity bytes per PVC.
     # `*-dumps-pvc` are the S-6 pg_dump rip cord volumes; they're sized to

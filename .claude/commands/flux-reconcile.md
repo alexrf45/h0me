@@ -5,12 +5,12 @@ All flux calls MUST go through the `k8sop` wrapper from `~/.zsh/kubeop.sh`
 
 For a specific kustomization:
 ```bash
-k8sop dev flux reconcile kustomization $ARGUMENTS --with-source
+k8sop home flux reconcile kustomization $ARGUMENTS --with-source
 ```
 
 For all kustomizations:
 ```bash
-k8sop dev flux get kustomizations
+k8sop home flux get kustomizations
 ```
 
 After reconciling, show the current status and flag any that are not Ready.

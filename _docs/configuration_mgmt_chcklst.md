@@ -107,11 +107,11 @@ namespaces: `allowPrivilegeEscalation:false`, `capabilities.drop:[ALL]`,
 
 ## 9. Validate, deploy, verify
 
-- [ ] Render: `kube dev kustomize _lib/applications/<app>/overlays/dev`
+- [ ] Render: `kube home kustomize _lib/applications/<app>/overlays/dev`
       (literal `${...}` is expected).
 - [ ] Lint: `/lint`.
 - [ ] Commit + push (GitOps — never `kubectl apply` ad hoc; it drifts).
-- [ ] Reconcile in order: `k8sop dev flux reconcile source git flux-system`,
+- [ ] Reconcile in order: `k8sop home flux reconcile source git flux-system`,
       then `... kustomization security`, then `... kustomization <app>`.
       **Reconciles take ~1–3 min — poll patiently.**
 - [ ] Confirm: pod `1/1 Running`; policies Ready; quota not exceeded.

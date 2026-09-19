@@ -49,7 +49,7 @@ If the gateway LB (`192.168.20.226`) isn't routable from where you are, test the
 proxy directly from inside the pod (Coraza still inspects loopback traffic):
 
 ```sh
-kube dev -n freshrss exec deploy/freshrss-waf -c coraza -- \
+kube home -n freshrss exec deploy/freshrss-waf -c coraza -- \
   wget -q -S -O /dev/null "http://127.0.0.1:8080/?id=1%27%20OR%20%271%27=%271" 2>&1 \
   | grep -i "HTTP/"
 # On=blocking → "HTTP/1.1 403 Forbidden"; DetectionOnly → "HTTP/1.1 302 Found"
@@ -73,17 +73,17 @@ Audit goes to stdout (`CORAZA_AUDIT_LOG=/dev/stdout`).
 
 ```sh
 # Live tail
-kube dev -n freshrss logs deploy/freshrss-waf -c coraza -f
+kube home -n freshrss logs deploy/freshrss-waf -c coraza -f
 
 # Recent CRS matches only
-kube dev -n freshrss logs deploy/freshrss-waf -c coraza --tail=500 | grep -i "Coraza:"
+kube home -n freshrss logs deploy/freshrss-waf -c coraza --tail=500 | grep -i "Coraza:"
 
 # Which rule IDs fired, ranked
-kube dev -n freshrss logs deploy/freshrss-waf -c coraza --tail=2000 \
+kube home -n freshrss logs deploy/freshrss-waf -c coraza --tail=2000 \
   | grep -oE 'id .\\?"[0-9]{6}\\?"' | grep -oE '[0-9]{6}' | sort | uniq -c | sort -rn
 
 # The blocking decision + anomaly score
-kube dev -n freshrss logs deploy/freshrss-waf -c coraza --tail=2000 | grep -i "Anomaly Score Exceeded"
+kube home -n freshrss logs deploy/freshrss-waf -c coraza --tail=2000 | grep -i "Anomaly Score Exceeded"
 ```
 
 Each match line carries `[id "NNNNNN"]`, `[msg "..."]`, `[severity "..."]`,
@@ -96,10 +96,10 @@ exceeded (the actual block in anomaly mode; default threshold 5).
 
 ```sh
 # Drops into the freshrss namespace, with reason
-k8sop dev hubble observe -n freshrss --verdict DROPPED --last 200
+k8sop home hubble observe -n freshrss --verdict DROPPED --last 200
 
 # L7 HTTP flows (method allowlist enforcement) for the app pod
-k8sop dev hubble observe -n freshrss --to-label app=freshrss --protocol http --last 200
+k8sop home hubble observe -n freshrss --to-label app=freshrss --protocol http --last 200
 ```
 
 A blocked method shows `verdict: DROPPED` with the L7 policy reason. Or use the
@@ -118,7 +118,7 @@ Hubble UI (`networking` namespace) for the same in a graph.
    commit, reconcile. Never blanket-`Off` the engine.
 3. **Real attack, need to confirm blocking is active:** run the verify commands
    above; check `CORAZA_RULE_ENGINE` is `On` in the live pod:
-   `kube dev -n freshrss get deploy freshrss-waf -o jsonpath='{.spec.template.spec.containers[0].env}'`.
+   `kube home -n freshrss get deploy freshrss-waf -o jsonpath='{.spec.template.spec.containers[0].env}'`.
 4. **Source attribution:** the `client` field in the Coraza log + Hubble
    `--ip`/`--from-identity` give the origin. (Behind the Cloudflare tunnel,
    prefer `X-Forwarded-For`; for direct gateway/LAN traffic the source IP is real.)
@@ -135,9 +135,9 @@ Hubble UI (`networking` namespace) for the same in a graph.
 # Edit _lib/applications/freshrss/base/waf-deployment.yaml:
 #   CORAZA_RULE_ENGINE: On | DetectionOnly | Off
 # commit + push, then:
-k8sop dev flux reconcile source git flux-system
-k8sop dev flux reconcile kustomization freshrss
-kube dev -n freshrss rollout status deploy/freshrss-waf
+k8sop home flux reconcile source git flux-system
+k8sop home flux reconcile kustomization freshrss
+kube home -n freshrss rollout status deploy/freshrss-waf
 ```
 
 > Direct `kubectl edit`/`set env` drifts from Git and is reverted on the next
@@ -146,7 +146,7 @@ kube dev -n freshrss rollout status deploy/freshrss-waf
 ## Health / sanity
 
 ```sh
-kube dev -n freshrss get pods -l app=freshrss-waf          # 1/1 Running
-kube dev get ciliumclusterwidenetworkpolicies | grep freshrss   # all Ready
-kube dev -n freshrss logs deploy/freshrss-waf -c coraza --tail=5 # "Launching caddy run ..."
+kube home -n freshrss get pods -l app=freshrss-waf          # 1/1 Running
+kube home get ciliumclusterwidenetworkpolicies | grep freshrss   # all Ready
+kube home -n freshrss logs deploy/freshrss-waf -c coraza --tail=5 # "Launching caddy run ..."
 ```

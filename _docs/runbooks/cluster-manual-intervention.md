@@ -26,16 +26,16 @@ Wrapper cheat sheet:
 
 ```sh
 # Flux layers: which kustomization is not Ready?
-k8sop dev flux get kustomizations
+k8sop home flux get kustomizations
 
 # HelmReleases across all namespaces (READY + last message)
-k8sop dev flux get hr -A
+k8sop home flux get hr -A
 
 # Pods that are not healthy
-kube dev get pods -A | grep -Ev "Running|Completed"
+kube home get pods -A | grep -Ev "Running|Completed"
 
 # PVCs that are not Bound
-kube dev get pvc -A | grep -v Bound
+kube home get pvc -A | grep -v Bound
 ```
 
 A Flux kustomization stuck on `Reconciliation in progress` is almost always
@@ -51,7 +51,7 @@ kustomization blindly.
 
 ```sh
 # Read the provisioning error off the PVC's events
-kube dev -n <ns> describe pvc <pvc-name> | grep -A8 Events
+kube home -n <ns> describe pvc <pvc-name> | grep -A8 Events
 ```
 
 Common provisioner errors and their meaning:
@@ -70,20 +70,20 @@ must restart the controller for config changes to take effect:
 
 ```sh
 # Confirm the live mounted config (prints only the matched line, no secrets)
-POD=$(kube dev -n storage get pod -l app.kubernetes.io/component=controller -o name | head -1)
-kube dev -n storage exec ${POD##*/} -c csi-driver -- \
+POD=$(kube home -n storage get pod -l app.kubernetes.io/component=controller -o name | head -1)
+kube home -n storage exec ${POD##*/} -c csi-driver -- \
   sh -c 'grep -i initiatorgroup /config/driver-config-file.yaml'
 
 # Restart the controller so it re-reads the config
-kube dev -n storage rollout restart deploy/storage-democratic-csi-freenas-controller
-kube dev -n storage rollout status  deploy/storage-democratic-csi-freenas-controller --timeout=120s
+kube home -n storage rollout restart deploy/storage-democratic-csi-freenas-controller
+kube home -n storage rollout status  deploy/storage-democratic-csi-freenas-controller --timeout=120s
 ```
 
 After the new controller is up, the provisioner retries automatically within
 ~30s and Pending PVCs bind without recreation. Verify:
 
 ```sh
-kube dev get pvc -A | grep -v Bound   # should print only the header
+kube home get pvc -A | grep -v Bound   # should print only the header
 ```
 
 > Never read the full CSI config secret into the conversation — it contains the
@@ -93,7 +93,7 @@ kube dev get pvc -A | grep -v Bound   # should print only the header
 ### Symptom: pod stuck `Init`/`ContainerCreating`, `FailedMount` iscsi login error 19
 
 ```sh
-kube dev -n <ns> describe pod <pod> | grep -A12 Events:
+kube home -n <ns> describe pod <pod> | grep -A12 Events:
 # MountVolume.MountDevice failed ... iscsiadm: Could not login to target
 # initiator reported error (19 - encountered non-retryable iSCSI login failure)
 ```
@@ -111,7 +111,7 @@ Tell: **dynamic** volumes (with the corrected initiator group) mount fine while
 > **TrueNAS → Shares → iSCSI → Targets**, for each failing static target (e.g.
 > `dev-gatus-db`, `dev-freshrss-pv`), set the Group's **Initiator Group** to the
 > same valid group the dynamic volumes use. Then delete the stuck pod to retry:
-> `kube dev -n <ns> delete pod <pod>`.
+> `kube home -n <ns> delete pod <pod>`.
 
 ---
 
@@ -126,9 +126,9 @@ endpoints, so it never calls the DNS provider/webhook. Walk the chain **upstream
 
 ```sh
 # Does the Gateway have an address? (ExternalDNS' gateway-httproute target)
-kube dev -n networking get gateway dev-app-gateway -o jsonpath='{.status.addresses}{"\n"}'
+kube home -n networking get gateway dev-app-gateway -o jsonpath='{.status.addresses}{"\n"}'
 # Is the GatewayClass accepted?
-kube dev get gatewayclass cilium -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
+kube home get gatewayclass cilium -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
 ```
 
 A Gateway stuck `Accepted=Unknown` / `Programmed=Unknown` ("Waiting for
@@ -136,7 +136,7 @@ controller") with **no backing `cilium-gateway-<name>` Service** means Cilium's
 Gateway API controller never started. Check the operator:
 
 ```sh
-kube dev -n networking logs deploy/cilium-operator | grep -i "GatewayAPI resources"
+kube home -n networking logs deploy/cilium-operator | grep -i "GatewayAPI resources"
 # error="... \"tlsroutes...\" not found / referencegrants ... does not have version \"v1\""
 ```
 
@@ -146,7 +146,7 @@ gateway-api release; check the version Cilium requires (its
 match channel + version:
 
 ```sh
-kube dev get crd referencegrants.gateway.networking.k8s.io \
+kube home get crd referencegrants.gateway.networking.k8s.io \
   -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}{"/"}{.metadata.annotations.gateway\.networking\.k8s\.io/channel}{" versions="}{range .spec.versions[*]}{.name}{","}{end}{"\n"}'
 ```
 
@@ -159,8 +159,8 @@ Like the CSI driver, the operator evaluates the required CRDs **once at process
 start**. After installing/upgrading Gateway API CRDs, restart it:
 
 ```sh
-kube dev -n networking rollout restart deploy/cilium-operator
-kube dev -n networking rollout status  deploy/cilium-operator --timeout=90s
+kube home -n networking rollout restart deploy/cilium-operator
+kube home -n networking rollout status  deploy/cilium-operator --timeout=90s
 ```
 
 Then the GatewayClass goes `Accepted=True`, the Gateway gets an address, and
@@ -173,8 +173,8 @@ block, or LB-IPAM silently leaves the Service `<pending>` even when the pool has
 free addresses:
 
 ```sh
-kube dev get ciliumloadbalancerippool -o jsonpath='{range .items[*].spec.blocks[*]}{.start}{"-"}{.stop}{"\n"}{end}'
-kube dev -n networking get svc <svc> -o jsonpath='{.spec.loadBalancerIP}{"\n"}'  # must be in range
+kube home get ciliumloadbalancerippool -o jsonpath='{range .items[*].spec.blocks[*]}{.start}{"-"}{.stop}{"\n"}{end}'
+kube home -n networking get svc <svc> -o jsonpath='{.spec.loadBalancerIP}{"\n"}'  # must be in range
 ```
 
 ---
@@ -186,29 +186,29 @@ If a HelmRelease **install/upgrade timed out** while a dependency was broken
 is exhausted — stops trying. Fixing the dependency does **not** auto-retry it.
 
 ```sh
-k8sop dev flux get hr -A | grep -i <name>
+k8sop home flux get hr -A | grep -i <name>
 # READY False  →  "Helm install failed ... timeout waiting for: ..."
 ```
 
 Reset the failure counter and force a fresh attempt:
 
 ```sh
-k8sop dev flux reconcile helmrelease <name> -n flux-system --reset
+k8sop home flux reconcile helmrelease <name> -n flux-system --reset
 ```
 
 `--reset` clears the failed-retry state so Flux re-attempts the install/upgrade.
 Watch it converge:
 
 ```sh
-k8sop dev flux get hr -n flux-system <name>
-kube dev -n <targetNamespace> get pods -w
+k8sop home flux get hr -n flux-system <name>
+kube home -n <targetNamespace> get pods -w
 ```
 
 Suspend/resume is the heavier-handed alternative and resets the same state:
 
 ```sh
-k8sop dev flux suspend helmrelease <name> -n flux-system
-k8sop dev flux resume  helmrelease <name> -n flux-system
+k8sop home flux suspend helmrelease <name> -n flux-system
+k8sop home flux resume  helmrelease <name> -n flux-system
 ```
 
 ---
@@ -217,8 +217,8 @@ k8sop dev flux resume  helmrelease <name> -n flux-system
 
 ```sh
 # Pull latest git first, then reconcile a layer (two calls — wrapper limitation)
-k8sop dev flux reconcile source git flux-system
-k8sop dev flux reconcile kustomization <layer>      # e.g. storage, observability
+k8sop home flux reconcile source git flux-system
+k8sop home flux reconcile kustomization <layer>      # e.g. storage, observability
 ```
 
 Layer dependency order (each depends on the one above): `cluster-config` →
@@ -234,8 +234,8 @@ dependency was down often need a delete to recreate cleanly once the underlying
 issue is fixed:
 
 ```sh
-kube dev -n <ns> delete pod <pod>             # one pod
-kube dev -n <ns> rollout restart deploy/<name>  # or the whole workload
+kube home -n <ns> delete pod <pod>             # one pod
+kube home -n <ns> rollout restart deploy/<name>  # or the whole workload
 ```
 
 ---
@@ -253,10 +253,10 @@ that node runs starved.
 The tell is a lopsided `top nodes` plus restarts clustered on the hot node:
 
 ```sh
-kube dev top nodes                            # one worker ~100%, peers single-digit %
-kube dev get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # high-restart pods all on that node
+kube home top nodes                            # one worker ~100%, peers single-digit %
+kube home get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # high-restart pods all on that node
 # all nodes schedulable (no taints / Unschedulable:false) yet load is lopsided:
-kube dev get nodes -o wide
+kube home get nodes -o wide
 ```
 
 Under CPU starvation the failures are **timeouts**, not real faults — leader-election
@@ -271,13 +271,13 @@ pass on an unloaded node. Fix the distribution.
 HOT=dev-memphis-node-<hot-node-id>            # the saturated worker from `top nodes`
 
 # 1. See what will move
-kube dev get pods -A -o wide --field-selector spec.nodeName=$HOT
+kube home get pods -A -o wide --field-selector spec.nodeName=$HOT
 
 # 2. Stop new pods landing on it
-kube dev cordon $HOT
+kube home cordon $HOT
 
 # 3. Evict everything off it onto the idle workers
-kube dev drain $HOT --ignore-daemonsets --delete-emptydir-data --disable-eviction
+kube home drain $HOT --ignore-daemonsets --delete-emptydir-data --disable-eviction
 ```
 
 - `--ignore-daemonsets` — required; per-node DaemonSet pods (local-path / freenas-node)
@@ -295,10 +295,10 @@ just the concentrated pods so their controllers reschedule them onto the idle wo
 ### Verify, then uncordon
 
 ```sh
-kube dev get pods -A -o wide -w               # moved pods Running on the idle workers; Ctrl-C when settled
-kube dev top nodes                            # hot node falls toward the others
-kube dev uncordon $HOT                        # restore as schedulable capacity (pods won't migrate back — fine)
-kube dev get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # restart counts stop climbing (history doesn't reset)
+kube home get pods -A -o wide -w               # moved pods Running on the idle workers; Ctrl-C when settled
+kube home top nodes                            # hot node falls toward the others
+kube home uncordon $HOT                        # restore as schedulable capacity (pods won't migrate back — fine)
+kube home get pods -A -o wide | awk 'NR==1 || $5+0 > 5'   # restart counts stop climbing (history doesn't reset)
 ```
 
 > Recreated Deployment pods come back with restart count 0 on their new nodes — a clean

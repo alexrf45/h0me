@@ -20,12 +20,12 @@ This is the rolling deployment/migration tracker. Each run supersedes the last r
 
    ```bash
    source ~/.zsh/kubeop.sh
-   kube dev get nodes -o wide
-   kube dev get kustomizations -n flux-system
-   kube dev get hr -A
-   kube dev get pods -A | grep -Ev '(Running|Completed)'
-   kube dev get certificate -A
-   kube dev get pvc -A
+   kube home get nodes -o wide
+   kube home get kustomizations -n flux-system
+   kube home get hr -A
+   kube home get pods -A | grep -Ev '(Running|Completed)'
+   kube home get certificate -A
+   kube home get pvc -A
    ```
 
    Flag: anything not Ready, the wildcard cert's issuer (staging vs prod), idle operators (deployed with zero CRs), high restart counts, unexpected pods.

@@ -5,7 +5,7 @@ All kubectl calls MUST go through the `kube` wrapper from `~/.zsh/kubeop.sh`
 and runs without the wrapper.
 
 ```bash
-kube dev get pods -A | grep -v Running | grep -v Completed
+kube home get pods -A | grep -v Running | grep -v Completed
 talosctl health
 ```
 
