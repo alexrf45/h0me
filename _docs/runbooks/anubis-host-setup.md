@@ -18,9 +18,10 @@ the binding constraint for the whole cluster; see
 `_docs/decisions/single-node-capacity-budget.md`. Nothing in this runbook may
 add a background daemon that isn't listed here.
 
-**Scope.** This runbook ends with a `Ready` node and **CoreDNS + metrics-server
-sitting `Pending`**. That is the correct finishing state — there is no CNI until
-Phase 1. Do not "fix" it here.
+**Scope.** This runbook ends with a **`NotReady` node** and **CoreDNS +
+metrics-server sitting `Pending`**. That is the correct finishing state, and the
+two facts are the same fact: there is no CNI until Phase 1, and kubelet will not
+report `Ready` without one. Do not "fix" it here.
 
 ---
 
@@ -325,12 +326,47 @@ k3s kubectl get pods -A
 
 Expected finishing state:
 
-- `anubis` is **`Ready`**, and `k3s kubectl get node anubis -L node` shows
-  `worker` under the `NODE` column.
+- `anubis` is **`NotReady`**. Correct — see below.
+- `k3s kubectl get node anubis -L node` shows `worker` under the `NODE` column.
 - **`coredns` and `metrics-server` are `Pending`.** Correct — there is no CNI.
 - **No** `flannel`, `kube-proxy`, `traefik`, `svclb-*` or `local-path-provisioner`
   pods anywhere.
 - `swapon --show` prints nothing.
+
+### Why the node is `NotReady` — and how to tell that apart from a fault
+
+`flannel-backend: none` means k3s installs no CNI and writes nothing into
+`/etc/cni/net.d`. kubelet will not advertise `Ready` without a network plugin, so
+it holds the node at:
+
+```
+Ready  False  KubeletNotReady  container runtime network not ready: NetworkReady=false
+               reason:NetworkPluginNotReady message:Network plugin returns error:
+               cni plugin not initialized
+```
+
+This is the same absence that leaves CoreDNS and metrics-server `Pending` — one
+cause, two symptoms. Both clear in Phase 1 the moment the Cilium agent drops a CNI
+conf. **A `Ready` node at the end of this runbook would mean something installed a
+CNI that was not asked for** — check for a surviving flannel.
+
+Confirm the reason rather than assuming it:
+
+```sh
+k3s kubectl get node anubis -o jsonpath='{range .status.conditions[*]}{.type}{"\t"}{.status}{"\t"}{.reason}{"\t"}{.message}{"\n"}{end}'
+ls -l /etc/cni/net.d/ 2>&1      # expect empty or absent
+```
+
+| Ready message mentions | Meaning |
+| --- | --- |
+| `cni plugin not initialized` / `NetworkPluginNotReady` | Expected. Phase 0 is done; go to Phase 1. |
+| `PLEG is not healthy` | containerd is wedged — `systemctl status containerd`, `journalctl -u k3s`. |
+| `DiskPressure` / `MemoryPressure` | Genuine host problem. Do not proceed. |
+| certificate or `Unauthorized` errors | kubelet cannot reach the API server; check `tls-san` and clock skew. |
+
+Every other condition (`MemoryPressure`, `DiskPressure`, `PIDPressure`) must read
+`False`. If they do and the only complaint is the CNI, stop here — that is the
+gate passed.
 
 If the node label is missing, stop. Fix `/etc/rancher/k3s/config.yaml` and
 `systemctl restart k3s` — the label is applied by the kubelet at **registration**,
@@ -360,8 +396,13 @@ kube-flush
 kube home get nodes
 ```
 
+Expect `anubis   NotReady   control-plane,master` — §7 explains why. Reaching the
+API server at all is what this step proves.
+
 `kube home` resolves to cluster `anubis` via `_kubeop_cluster_for_env` — see
-`.claude/rules/kube-wrapper.md`.
+`.claude/rules/kube-wrapper.md`. The wrapper is bash as of 2026-09-19 and is
+sourced by the Home Manager module `dev-tools/kubernetes.nix` in `nix-config`;
+if `kube` is not a known command, that module has not been switched in yet.
 
 ---
 
@@ -411,5 +452,5 @@ then the `sops-age` and git-auth Secrets, then Flux Operator and the
 operator validates Gateway API CRDs only at process start, and Flux's `crds`
 layer has not run yet.
 
-CoreDNS and metrics-server go `Running` the moment Cilium is up. That is the
-Phase 1 gate, not this one.
+The node flips to `Ready` and CoreDNS and metrics-server go `Running` the moment
+Cilium's agent writes a CNI conf. That is the Phase 1 gate, not this one.
