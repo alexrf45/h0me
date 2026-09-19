@@ -178,8 +178,19 @@ k8sop() {
 
   # Process substitution materializes a /dev/fd/N pipe the command reads via
   # --kubeconfig. Single-use — see THE SINGLE-USE PIPE above.
-  KUBECONFIG_DATA="$kubedata" \
+  #
+  # The export and the subshell are both load-bearing. A `VAR=x cmd <(...)`
+  # prefix puts VAR only in cmd's environment, but bash forks the process
+  # substitution from the *current* shell, where VAR is still unset — so
+  # `printenv` writes nothing, the tool reads a zero-byte kubeconfig, and
+  # kubectl falls back to its localhost:8080 default with a "connection
+  # refused" that looks like a dead cluster rather than a missing config.
+  # Exporting inside a subshell sets the variable before the substitution is
+  # created, and keeps it out of the calling shell's environment.
+  (
+    export KUBECONFIG_DATA="$kubedata"
     "$cmd" --kubeconfig <(printenv KUBECONFIG_DATA) "$@"
+  )
 }
 
 # Multi-read variant: kubeconfig in tmpfs, removed on exit. See the header.
