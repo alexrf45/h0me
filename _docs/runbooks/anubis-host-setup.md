@@ -416,15 +416,15 @@ install -d -m 0700 /var/backups/k3s
 cat > /etc/cron.daily/k3s-datastore-backup <<'EOF'
 #!/bin/sh
 set -eu
-out="/var/backups/k3s/k3s-server-$(date -u +%Y%m%dT%H%M%SZ).tar.zst"
+out="/backups/k3s/k3s-server-$(date -u +%Y%m%dT%H%M%SZ).tar.zst"
 tar -C /var/lib/rancher/k3s -caf "$out" server/db server/token server/tls
-find /var/backups/k3s -name 'k3s-server-*.tar.zst' -mtime +14 -delete
+find /backups/k3s -name 'k3s-server-*.tar.zst' -mtime +14 -delete
 EOF
 chmod +x /etc/cron.daily/k3s-datastore-backup
 /etc/cron.daily/k3s-datastore-backup && ls -lh /var/backups/k3s
 ```
 
-Ship those off-box to TrueNAS — a backup on the same disk as the thing it backs
+Ship those off-box to TrueNAS — a backup on the same disk as the thing it backs (mounted nfs share /mnt/home-share/backups to /backups/k3s)
 up is not a backup. Wire that up alongside the CNPG dump export and record it in
 `_docs/runbooks/disaster-recovery.md`.
 
