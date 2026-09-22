@@ -40,7 +40,7 @@ for app in authentik gatus homer; do
   dir="_lib/applications/${app}/base"
   echo "== kustomize render: ${dir} =="
   out="${render_dir}/${app}.yaml"
-  kube dev kustomize "$dir" >"$out"
+  kube home kustomize "$dir" >"$out"
 
   # Must contain at least one PodDisruptionBudget for this app.
   pdb_count="$(yq -r 'select(.kind == "PodDisruptionBudget") | .metadata.name' "$out" 2>/dev/null \
@@ -69,7 +69,7 @@ for app in authentik gatus homer; do
   echo "OK: ${app} -> ${pdb_count} PodDisruptionBudget(s), namespace ${NS[$app]}, non-empty selector"
 done
 
-echo "== read-only evidence: kube dev get pdb -A =="
-kube dev get pdb -A || true
+echo "== read-only evidence: kube home get pdb -A =="
+kube home get pdb -A || true
 
 echo "ALL CHECKS PASSED"

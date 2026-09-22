@@ -70,9 +70,9 @@ The subagent prompt instructs:
 1. **Write `.claude/sprints/<task-id>/accept.sh` FIRST** (before any implementation edits). The script must:
    - Be `#!/usr/bin/env bash` with `set -euo pipefail`.
    - Run yamllint on touched paths (`yamllint -c .yamllint.yaml <paths>`).
-   - Run `kube dev kustomize <relevant-overlay-or-base>` and check that output rendered (non-empty, no `${...}` placeholder leakage where final-form is expected).
+   - Run `kube home kustomize <relevant-overlay-or-base>` and check that output rendered (non-empty, no `${...}` placeholder leakage where final-form is expected).
    - Assert any manifest invariants the task requires (use `yq`/`jq` against the kustomize output — e.g. "PodMonitor exists for `<svc>`", "NetworkPolicy `<name>` selects `<labels>`").
-   - Optionally include **one read-only `k8sop dev` probe** for evidence of current cluster state (e.g. `k8sop dev kubectl get podmonitor -n monitoring <name>` — read-only, doesn't mutate).
+   - Optionally include **one read-only `k8sop home` probe** for evidence of current cluster state (e.g. `k8sop home kubectl get podmonitor -n monitoring <name>` — read-only, doesn't mutate).
    - Exit non-zero on any failure.
    - **No `kubectl apply`, no `flux reconcile`, no `helm install`, no pushes.** Static + read-only only.
 2. Stage the implementation: edit files under the worktree, `git add`, commit with `feat(<area>): <one-line>` style matching `git log --oneline` history.

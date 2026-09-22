@@ -14,12 +14,12 @@ This is the cluster-aware sibling of `/sprint-menu`. Where `/sprint-menu` trusts
 3. **Survey the live cluster** (read-only, via the `~/.zsh/kubeop.sh` wrappers ONLY — never raw `kubectl`/`flux`; see CLAUDE.md → kube-wrapper rule). Keep it light — this is a pulse check, not `/lab-review`:
    ```bash
    source ~/.zsh/kubeop.sh
-   kube dev get nodes -o wide
-   kube dev get kustomizations -n flux-system
-   kube dev get hr -A
-   kube dev get pods -A | grep -Ev '(Running|Completed)'
-   kube dev get certificate -A
-   kube dev get pvc -A
+   kube home get nodes -o wide
+   kube home get kustomizations -n flux-system
+   kube home get hr -A
+   kube home get pods -A | grep -Ev '(Running|Completed)'
+   kube home get certificate -A
+   kube home get pvc -A
    ```
    If a wrapper isn't sourced, `source ~/.zsh/kubeop.sh` first. If the cluster is unreachable (e.g. stale kubeconfig after a rebuild — try `kube-flush` first), say so and continue from repo state alone, flagging the access gap as the top item.
 
@@ -38,7 +38,7 @@ This is the cluster-aware sibling of `/sprint-menu`. Where `/sprint-menu` trusts
 
 7. **Ask, then start.** Use AskUserQuestion to drive the fork, with questions **grounded in this session's findings** (steps 4–5), e.g.: "Verify the node-label change survives a rebuild before new work, or proceed?", "Cilium is on a pre-release pin — pin to stable as its own task, or accept and move on?", "Promote <design choice> to an ADR now?". Put the recommended option first, labeled (Recommended). Offer at least: the lead resume item, the lead pickup sprint, "single task", and "draft an ADR first". Honor the selection.
    - On a sprint that bundles ≥2 independent (no file-overlap) tasks, mention `/sprint-orchestrate <ids...>` as a parallel-execution alternative.
-   - Then begin: `TaskCreate` for the chosen work, mark the first item in_progress, and proceed under CLAUDE.md rules (wrappers only; no SOPS/secret edits without confirmation; symptom → read config/logs → hypothesis → fix, no speculative iteration; run `/lint` + offline `kube dev kustomize <dir>` before calling a change done; don't commit unless asked — 1Password SSH signing).
+   - Then begin: `TaskCreate` for the chosen work, mark the first item in_progress, and proceed under CLAUDE.md rules (wrappers only; no SOPS/secret edits without confirmation; symptom → read config/logs → hypothesis → fix, no speculative iteration; run `/lint` + offline `kube home kustomize <dir>` before calling a change done; don't commit unless asked — 1Password SSH signing).
 
 ## Notes
 - Read actual config/logs/live state before asserting status — mark unknowns ❓, don't guess (CLAUDE.md → Code Fixes).

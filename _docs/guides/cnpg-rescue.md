@@ -55,10 +55,10 @@ There are **two independent backups** per cluster:
 _hack/scripts/dr_orchestrator.py verify
 
 # Or by hand, for one app (freshrss shown):
-kube dev -n freshrss get cluster freshrss-dev-cluster
-kube dev -n freshrss get backups.postgresql.cnpg.io
-kube dev -n freshrss get volumesnapshot
-kube dev -n freshrss describe volumesnapshot <name> | grep -E 'ReadyToUse|RestoreSize|Creation'
+kube home -n freshrss get cluster freshrss-dev-cluster
+kube home -n freshrss get backups.postgresql.cnpg.io
+kube home -n freshrss get volumesnapshot
+kube home -n freshrss describe volumesnapshot <name> | grep -E 'ReadyToUse|RestoreSize|Creation'
 ```
 
 List the logical dumps (mount the dumps PVC read-only in a throwaway pod):
@@ -118,8 +118,8 @@ spec:
 ```
 
 ```sh
-kube dev apply -f restore.yaml
-kube dev -n freshrss get cluster freshrss-dev-cluster-restore -w
+kube home apply -f restore.yaml
+kube home -n freshrss get cluster freshrss-dev-cluster-restore -w
 ```
 
 Validate, then cut over (see step 5).
@@ -155,7 +155,7 @@ By hand — run `pg_restore` from a throwaway pod that mounts the dumps PVC and
 reads creds from the app secret:
 
 ```sh
-kube dev -n freshrss run dr-restore --rm -i --restart=Never \
+kube home -n freshrss run dr-restore --rm -i --restart=Never \
   --image=ghcr.io/cloudnative-pg/postgresql:17.4-6 \
   --overrides='{"spec":{"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"dev-freshrss-dumps-pvc","readOnly":true}}],"containers":[{"name":"r","image":"ghcr.io/cloudnative-pg/postgresql:17.4-6","volumeMounts":[{"name":"b","mountPath":"/backup","readOnly":true}],"env":[{"name":"PGPASSWORD","valueFrom":{"secretKeyRef":{"name":"freshrss-db-creds","key":"password"}}}],"command":["bash","-c","pg_restore --clean --if-exists --no-owner --no-acl --host=freshrss-dev-cluster-rw --username=freshrss --dbname=freshrss /backup/<DUMP>"]}]}}' \
   --command -- true
@@ -173,11 +173,11 @@ After either path, before sending traffic:
 
 ```sh
 # Cluster healthy, 1/1, primary elected:
-kube dev -n freshrss get cluster <cluster> -o wide
-k8sop dev kubectl-cnpg status <cluster> -n freshrss
+kube home -n freshrss get cluster <cluster> -o wide
+k8sop home kubectl-cnpg status <cluster> -n freshrss
 
 # Sanity-check row counts against what you expect:
-kube dev -n freshrss exec -it <cluster>-1 -- psql -U freshrss -d freshrss \
+kube home -n freshrss exec -it <cluster>-1 -- psql -U freshrss -d freshrss \
   -c '\dt' -c 'SELECT count(*) FROM <a_known_table>;'
 ```
 
@@ -189,7 +189,7 @@ Cut over options:
   delete the broken cluster and rename/recreate the good one under the original
   name. Coordinate with Flux: the cluster is GitOps-managed, so reconcile or
   suspend the `applications` kustomization while you operate manually
-  (`k8sop dev flux suspend kustomization applications`, resume after).
+  (`k8sop home flux suspend kustomization applications`, resume after).
 
 ---
 

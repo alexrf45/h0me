@@ -11,7 +11,7 @@
 #   - Exits 0 on pass, non-zero on fail. Print enough context that a human
 #     reading the CI log can pinpoint the failure.
 #   - Idempotent — re-running must not mutate the worktree or the cluster.
-#   - Wrapper rule (CLAUDE.md): cluster reads go through `k8sop dev kubectl ...`,
+#   - Wrapper rule (CLAUDE.md): cluster reads go through `k8sop home kubectl ...`,
 #     never raw `kubectl`. In CI the wrapper isn't available, so guard any
 #     cluster probe behind `if command -v k8sop >/dev/null` and skip cleanly
 #     when missing.
@@ -59,7 +59,7 @@ done
 #    change being made. Guarded so CI (no wrapper) skips cleanly.
 if command -v k8sop >/dev/null 2>&1; then
   say "k8sop probe (read-only)"
-  # k8sop dev kubectl get <resource> -n <ns> <name> -o name >/dev/null \
+  # k8sop home kubectl get <resource> -n <ns> <name> -o name >/dev/null \
   #   || fail "expected resource missing"
 fi
 
